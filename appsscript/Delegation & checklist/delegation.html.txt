@@ -1,0 +1,2209 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <style>
+    /* Base Table Layout config to support sticky column highlights */
+    #delegationTable {
+      border-collapse: separate;
+      border-spacing: 0;
+    }
+    
+    /* Sticky table column styles */
+    .sticky-col-0 { position: sticky; left: 0px; z-index: 20; width: 48px; min-width: 48px; max-width: 48px; }
+    .sticky-col-1 { position: sticky; left: 48px; z-index: 20; width: 112px; min-width: 112px; max-width: 112px; }
+    .sticky-col-2 { position: sticky; left: 160px; z-index: 20; width: 130px; min-width: 130px; max-width: 130px; }
+    .sticky-col-3 { position: sticky; left: 290px; z-index: 20; width: 170px; min-width: 170px; max-width: 170px; }
+    .sticky-col-4 { position: sticky; left: 460px; z-index: 20; width: 140px; min-width: 140px; max-width: 140px; }
+
+    /* Sticky table header row — pins below app nav + page header */
+    #delegationTable thead th {
+      position: sticky;
+      top: 0;
+      z-index: 25;
+      background-color: #f8fafc;
+    }
+
+    /* Frozen columns in the header need BOTH top and left → higher stacking.
+       ID prefix required to outrank #delegationTable thead th */
+    #delegationTable thead th.sticky-col-0,
+    #delegationTable thead th.sticky-col-1,
+    #delegationTable thead th.sticky-col-2,
+    #delegationTable thead th.sticky-col-3,
+    #delegationTable thead th.sticky-col-4 {
+      background-color: #f8fafc !important;
+      z-index: 28;
+    }
+
+    /* td solid backgrounds to prevent scrolling text bleeding through */
+    td.sticky-col-0, td.sticky-col-1, td.sticky-col-2, td.sticky-col-3, td.sticky-col-4 {
+      background-color: #ffffff;
+    }
+
+    /* Support row background highlights on selection and alternate rows */
+    tr:nth-child(even) td.sticky-col-0, 
+    tr:nth-child(even) td.sticky-col-1, 
+    tr:nth-child(even) td.sticky-col-2, 
+    tr:nth-child(even) td.sticky-col-3, 
+    tr:nth-child(even) td.sticky-col-4 {
+      background-color: #f9fafb; /* matches bg-gray-50/50 */
+    }
+    
+    tr.bg-violet-50\/80 td.sticky-col-0,
+    tr.bg-violet-50\/80 td.sticky-col-1,
+    tr.bg-violet-50\/80 td.sticky-col-2,
+    tr.bg-violet-50\/80 td.sticky-col-3,
+    tr.bg-violet-50\/80 td.sticky-col-4 {
+      background-color: #f5f3ff !important; /* matches bg-violet-50/80 */
+    }
+
+    /* Divider shadow on the last frozen column */
+    .sticky-col-4 {
+      box-shadow: 4px 0 8px -3px rgba(0,0,0,0.15);
+      border-right: 1px solid #e2e8f0;
+    }
+  </style>
+</head>
+<body class="bg-gradient-to-br from-slate-50 to-blue-50 min-h-screen overflow-x-hidden" style="font-family:'Inter',sans-serif">
+
+<div class="min-w-0 flex flex-col relative h-[calc(100vh-64px)] overflow-hidden">
+
+  <!-- Page Header (static, never overlaps) -->
+  <div class="shrink-0 z-30 bg-gradient-to-br from-slate-50 to-blue-50 pt-4 pb-4 px-4 sm:px-6 border-b border-gray-200 shadow-sm">
+    <div class="flex flex-wrap justify-between items-center gap-3">
+      <div class="flex items-center gap-3">
+        <div class="bg-gradient-to-br from-violet-500 to-purple-600 p-2.5 rounded-2xl shadow-md">
+          <i class="fas fa-tasks text-white text-xl"></i>
+        </div>
+        <div>
+          <h1 class="text-2xl font-extrabold text-gray-800 leading-tight">
+            Delegation <span class="text-violet-600">Manager</span>
+          </h1>
+          <p class="text-xs text-gray-400 mt-0.5">Assign and track delegated tasks</p>
+        </div>
+      </div>
+    <div class="flex gap-2 items-center flex-wrap">
+      <!-- Role Switcher -->
+      <div id="roleSwitcherContainer" class="hidden"></div>
+
+      <!-- Search -->
+      <div class="relative">
+        <i class="fas fa-search absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs"></i>
+        <input id="globalSearch" type="text" placeholder="Search tasks…"
+          class="pl-7 pr-3 py-2 border border-gray-200 rounded-xl text-sm bg-white shadow focus:ring-1 focus:ring-violet-300 outline-none w-44">
+      </div>
+
+
+      <!-- Filter -->
+      <button id="openFilterBtn"
+        class="bg-white hover:bg-violet-50 text-gray-600 hover:text-violet-600 px-4 py-2 rounded-xl shadow border border-gray-200 flex items-center gap-2 text-sm font-medium transition-all duration-150">
+        <i class="fas fa-sliders-h text-violet-400"></i>
+        <span class="hidden sm:inline">Filter</span>
+        <span id="filterBadge" class="hidden bg-violet-600 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center font-bold">0</span>
+      </button>
+
+      <!-- Export -->
+      <button id="exportBtn"
+        class="bg-white hover:bg-emerald-50 text-gray-600 hover:text-emerald-600 px-4 py-2 rounded-xl shadow border border-gray-200 flex items-center gap-2 text-sm font-medium transition-all duration-150">
+        <i class="fas fa-file-csv text-emerald-500"></i>
+        <span class="hidden sm:inline">Export</span>
+      </button>
+
+      <!-- Add Task -->
+      <button id="openAddModalBtn"
+        class="bg-gradient-to-r from-violet-500 to-purple-500 hover:from-violet-600 hover:to-purple-600 text-white px-4 py-2 rounded-xl shadow-md flex items-center gap-2 text-sm font-semibold transition-all duration-150">
+        <i class="fas fa-plus-circle"></i>
+        <span class="hidden sm:inline">Add Task</span>
+      </button>
+    </div>
+    </div>
+  </div>
+  <!-- END STICKY wrapper -->
+
+  <!-- Data Table -->
+  <div class="flex-1 min-h-0 flex flex-col rounded-2xl overflow-hidden px-4 sm:px-6 pt-4 pb-4">
+    <div class="flex-1 min-h-0 overflow-auto bg-white rounded-t-2xl shadow-lg border border-gray-100">
+      <table id="delegationTable" class="min-w-full divide-y divide-gray-100">
+        <thead>
+          <tr class="bg-gradient-to-r from-gray-50 to-slate-100 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+            <th class="sticky-col-0 px-4 py-3.5 text-center whitespace-nowrap"><input type="checkbox" id="selectAllCb" class="rounded border-gray-300 text-violet-600 focus:ring-violet-300"></th>
+            <th class="sticky-col-1 px-4 py-3.5 text-center whitespace-nowrap"><i class="fas fa-cog text-gray-400"></i></th>
+            <th class="sticky-col-2 px-4 py-3.5 text-left whitespace-nowrap"><i class="far fa-calendar-alt mr-1 text-blue-400"></i>ID & Creation</th>
+            <th class="sticky-col-3 px-4 py-3.5 text-left whitespace-nowrap"><i class="far fa-user mr-1 text-indigo-400"></i>Delegation Flow</th>
+            <th class="sticky-col-4 px-4 py-3.5 text-left whitespace-nowrap"><i class="fas fa-sitemap mr-1 text-teal-400"></i>Parent & Dept</th>
+            <th class="px-4 py-3.5 text-left whitespace-nowrap"><i class="fas fa-tag mr-1 text-orange-400"></i>Task Details</th>
+            <th class="px-4 py-3.5 text-left whitespace-nowrap"><i class="fas fa-fire mr-1 text-red-400"></i>Priority & Score</th>
+            <th class="px-4 py-3.5 text-left whitespace-nowrap"><i class="fas fa-circle mr-1 text-green-400"></i>Due Date & Status</th>
+            <th class="px-4 py-3.5 text-left whitespace-nowrap"><i class="fas fa-file-signature mr-1 text-teal-500"></i>Requirements</th>
+            <th class="px-4 py-3.5 text-left whitespace-nowrap"><i class="far fa-calendar-alt mr-1 text-orange-400"></i>Revision Details</th>
+            <th class="px-4 py-3.5 text-left whitespace-nowrap"><i class="far fa-comment-dots mr-1 text-purple-400"></i>Remark</th>
+            <th class="px-4 py-3.5 text-left whitespace-nowrap"><i class="fas fa-check mr-1 text-emerald-400"></i>Proof & Completion</th>
+          </tr>
+        </thead>
+        <tbody id="delegationTableBody" class="divide-y divide-gray-50 bg-white">
+          <tr><td colspan="12" class="text-center py-16 text-gray-400">
+            <i class="fas fa-spinner fa-pulse text-2xl mb-2 block"></i>
+            <span class="text-sm">Loading tasks...</span>
+          </td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Pagination -->
+    <div id="paginationBar" class="shrink-0 px-5 py-3 border-t border-gray-100 bg-gray-50 rounded-b-2xl shadow-lg border-x border-b border-gray-100 flex flex-wrap items-center justify-between gap-3 hidden">
+      <span id="paginationInfo" class="text-xs text-gray-500"></span>
+      <div class="flex items-center gap-1">
+        <button id="pgFirst" class="px-2.5 py-1.5 rounded-lg bg-white border border-gray-200 text-gray-600 text-xs hover:bg-violet-50 hover:border-violet-300 disabled:opacity-40 disabled:cursor-not-allowed transition"><i class="fas fa-angle-double-left"></i></button>
+        <button id="pgPrev"  class="px-2.5 py-1.5 rounded-lg bg-white border border-gray-200 text-gray-600 text-xs hover:bg-violet-50 hover:border-violet-300 disabled:opacity-40 disabled:cursor-not-allowed transition"><i class="fas fa-angle-left"></i></button>
+        <div id="pgNumbers" class="flex gap-1"></div>
+        <button id="pgNext"  class="px-2.5 py-1.5 rounded-lg bg-white border border-gray-200 text-gray-600 text-xs hover:bg-violet-50 hover:border-violet-300 disabled:opacity-40 disabled:cursor-not-allowed transition"><i class="fas fa-angle-right"></i></button>
+        <button id="pgLast"  class="px-2.5 py-1.5 rounded-lg bg-white border border-gray-200 text-gray-600 text-xs hover:bg-violet-50 hover:border-violet-300 disabled:opacity-40 disabled:cursor-not-allowed transition"><i class="fas fa-angle-double-right"></i></button>
+        <select id="pgSize" class="ml-2 border border-gray-200 rounded-lg px-2 py-1.5 text-xs text-gray-600 bg-white focus:outline-none focus:ring-1 focus:ring-violet-300">
+          <option value="10">10 / page</option>
+          <option value="20" selected>20 / page</option>
+          <option value="50">50 / page</option>
+        </select>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── FILTER PANEL ──────────────────────────────────────────────────── -->
+<div id="filterModal" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 hidden">
+  <div id="filterSlidePanel"
+    class="absolute left-0 top-0 h-full w-full max-w-sm bg-white shadow-2xl transform -translate-x-full transition-transform duration-300 ease-in-out flex flex-col">
+    <div class="p-5 border-b flex justify-between items-center bg-gradient-to-r from-violet-50 to-purple-50">
+      <h2 class="text-lg font-bold text-gray-800 flex items-center gap-2">
+        <i class="fas fa-sliders-h text-violet-500"></i> Filter Tasks
+      </h2>
+      <button id="closeFilterModal" class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-200 text-gray-500 transition"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="flex-1 overflow-y-auto p-5 space-y-5">
+      <!-- Date Range Filter -->
+<!-- Date Range Filter -->
+<!-- Date Range Filter -->
+<div>
+  <label class="text-sm font-semibold text-gray-700 mb-1.5 block">Task Date Range (Past/Today)</label>
+  <div class="grid grid-cols-2 gap-2">
+    <!-- max attribute aaj ki date set kar dega -->
+    <input id="filterFromDate" type="date" class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs outline-none focus:ring-1 focus:ring-violet-300">
+    <input id="filterToDate" type="date" class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs outline-none focus:ring-1 focus:ring-violet-300">
+  </div>
+</div>
+      <!-- Delegator -->
+      <div>
+        <div class="flex items-center justify-between mb-1.5">
+          <label class="text-sm font-semibold text-gray-700">Delegator</label>
+          <button class="clearSection text-xs text-violet-500 hover:underline" data-section="delegator">Clear</button>
+        </div>
+        <div class="relative mb-1.5">
+          <i class="fas fa-search absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs"></i>
+          <input id="searchDelegator" type="text" placeholder="Search…" class="w-full pl-7 pr-3 py-1.5 border border-gray-200 rounded-lg text-xs focus:ring-1 focus:ring-violet-300 outline-none">
+        </div>
+        <div id="delegatorCheckboxList" class="max-h-36 overflow-y-auto border border-gray-100 rounded-xl divide-y divide-gray-50 bg-gray-50"></div>
+      </div>
+
+      <!-- Delegatee -->
+      <div>
+        <div class="flex items-center justify-between mb-1.5">
+          <label class="text-sm font-semibold text-gray-700">Delegatee</label>
+          <button class="clearSection text-xs text-violet-500 hover:underline" data-section="delegatee">Clear</button>
+        </div>
+        <div class="relative mb-1.5">
+          <i class="fas fa-search absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs"></i>
+          <input id="searchDelegatee" type="text" placeholder="Search…" class="w-full pl-7 pr-3 py-1.5 border border-gray-200 rounded-lg text-xs focus:ring-1 focus:ring-violet-300 outline-none">
+        </div>
+        <div id="delegateeCheckboxList" class="max-h-36 overflow-y-auto border border-gray-100 rounded-xl divide-y divide-gray-50 bg-gray-50"></div>
+      </div>
+
+      <!-- Priority -->
+      <div>
+        <div class="flex items-center justify-between mb-1.5">
+          <label class="text-sm font-semibold text-gray-700">Priority</label>
+          <button class="clearSection text-xs text-violet-500 hover:underline" data-section="priority">Clear</button>
+        </div>
+        <div id="priorityCheckboxList" class="border border-gray-100 rounded-xl divide-y divide-gray-50 bg-gray-50">
+          <label class="flex items-center gap-2.5 px-3 py-2 hover:bg-white cursor-pointer transition"><input type="checkbox" class="priority-cb accent-violet-600 w-3.5 h-3.5" value="High"><span class="text-sm text-gray-700">High</span></label>
+          <label class="flex items-center gap-2.5 px-3 py-2 hover:bg-white cursor-pointer transition"><input type="checkbox" class="priority-cb accent-violet-600 w-3.5 h-3.5" value="Medium"><span class="text-sm text-gray-700">Medium</span></label>
+          <label class="flex items-center gap-2.5 px-3 py-2 hover:bg-white cursor-pointer transition"><input type="checkbox" class="priority-cb accent-violet-600 w-3.5 h-3.5" value="Low"><span class="text-sm text-gray-700">Low</span></label>
+        </div>
+      </div>
+
+      <!-- Status -->
+      <div>
+        <div class="flex items-center justify-between mb-1.5">
+          <label class="text-sm font-semibold text-gray-700">Status</label>
+          <button class="clearSection text-xs text-violet-500 hover:underline" data-section="status">Clear</button>
+        </div>
+        <div id="statusCheckboxList" class="border border-gray-100 rounded-xl divide-y divide-gray-50 bg-gray-50">
+          <label class="flex items-center gap-2.5 px-3 py-2 hover:bg-white cursor-pointer transition"><input type="checkbox" class="status-cb accent-violet-600 w-3.5 h-3.5" value="Pending"><span class="text-sm text-gray-700">Pending</span></label>
+          <label class="flex items-center gap-2.5 px-3 py-2 hover:bg-white cursor-pointer transition"><input type="checkbox" class="status-cb accent-violet-600 w-3.5 h-3.5" value="Approval Waiting"><span class="text-sm text-gray-700">Approval Waiting</span></label>
+          <label class="flex items-center gap-2.5 px-3 py-2 hover:bg-white cursor-pointer transition"><input type="checkbox" class="status-cb accent-violet-600 w-3.5 h-3.5" value="Completed"><span class="text-sm text-gray-700">Completed</span></label>
+          <label class="flex items-center gap-2.5 px-3 py-2 hover:bg-white cursor-pointer transition"><input type="checkbox" class="status-cb accent-violet-600 w-3.5 h-3.5" value="Completed With Delay"><span class="text-sm text-gray-700">Completed With Delay</span></label>
+          <label class="flex items-center gap-2.5 px-3 py-2 hover:bg-white cursor-pointer transition"><input type="checkbox" class="status-cb accent-violet-600 w-3.5 h-3.5" value="Overdue"><span class="text-sm text-gray-700">Overdue</span></label>
+        </div>
+      </div>
+
+      <!-- Department -->
+      <div>
+        <div class="flex items-center justify-between mb-1.5">
+          <label class="text-sm font-semibold text-gray-700">Department</label>
+          <button class="clearSection text-xs text-violet-500 hover:underline" data-section="dept">Clear</button>
+        </div>
+        <div id="deptCheckboxList" class="max-h-36 overflow-y-auto border border-gray-100 rounded-xl divide-y divide-gray-50 bg-gray-50">
+          <p class="text-xs text-gray-400 p-3 text-center">Loading…</p>
+        </div>
+      </div>
+
+    </div>
+    <div class="p-5 border-t bg-gray-50 flex gap-3">
+      <button id="clearAllFiltersBtn" class="flex-1 py-2.5 rounded-xl border border-gray-200 bg-white text-sm text-gray-600 font-medium hover:bg-gray-100 transition">Clear All</button>
+      <button id="applyFiltersBtn" class="flex-1 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-sm font-semibold shadow transition">Apply</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── ADD / EDIT MODAL ──────────────────────────────────────────────── -->
+<div id="addModal" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 hidden">
+  <div id="addSlidePanel"
+    class="absolute right-0 top-0 h-full w-full max-w-lg bg-white shadow-2xl transform translate-x-full transition-transform duration-300 ease-in-out flex flex-col">
+    <div class="p-5 border-b flex justify-between items-center bg-gradient-to-r from-violet-50 to-purple-50">
+      <h2 id="addModalTitle" class="text-lg font-bold text-gray-800 flex items-center gap-2">
+        <i class="fas fa-plus-circle text-violet-500"></i> Add Task
+      </h2>
+      <button id="closeAddModal" class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-200 text-gray-500 transition"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="flex-1 overflow-y-auto p-5 space-y-4">
+
+      <div class="grid grid-cols-2 gap-4">
+        <!-- Delegator -->
+        <div class="col-span-1">
+          <label class="block text-xs font-semibold text-gray-600 mb-1">Delegator *</label>
+  <select id="f_delegator" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:ring-1 focus:ring-violet-300 outline-none bg-white">
+  <option value="">Select delegator...</option>
+</select>
+          <datalist id="dl_delegator"></datalist>
+        </div>
+        <!-- Delegatee -->
+        <div class="col-span-1">
+          <label class="block text-xs font-semibold text-gray-600 mb-1">Delegatee *</label>
+         <select id="f_delegatee" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:ring-1 focus:ring-violet-300 outline-none bg-white">
+  <option value="">Select delegatee...</option>
+</select>
+          <datalist id="dl_delegatee"></datalist>
+        </div>
+        <!-- Parent Task -->
+        <div class="col-span-2">
+          <label class="block text-xs font-semibold text-gray-600 mb-1">Parent Task</label>
+          <input id="f_parentTask" list="dl_parentTask" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:ring-1 focus:ring-violet-300 outline-none" placeholder="Search Parent Task (Title or ID)">
+          <datalist id="dl_parentTask"></datalist>
+        </div>
+        <!-- Department -->
+       <!-- Department (Dropdown) -->
+        <div class="col-span-1">
+          <label class="block text-xs font-semibold text-gray-600 mb-1">Department</label>
+          <select id="f_department" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:ring-1 focus:ring-violet-300 outline-none bg-white">
+            <option value="">Select department...</option>
+          </select>
+        </div>
+        <!-- Priority -->
+        <div class="col-span-1">
+          <label class="block text-xs font-semibold text-gray-600 mb-1.5">Priority</label>
+          <div class="flex gap-1.5" id="priorityGroup">
+            <button type="button" data-val="High" class="priority-btn flex-1 py-2 text-xs font-semibold rounded-xl border transition-all duration-200 border-gray-200 text-gray-500 hover:bg-red-50 hover:text-red-600 hover:border-red-200 active:scale-95">High</button>
+            <button type="button" data-val="Medium" class="priority-btn flex-1 py-2 text-xs font-semibold rounded-xl border transition-all duration-200 border-gray-200 text-gray-500 hover:bg-amber-50 hover:text-amber-600 hover:border-amber-200 active:scale-95">Medium</button>
+            <button type="button" data-val="Low" class="priority-btn flex-1 py-2 text-xs font-semibold rounded-xl border transition-all duration-200 border-gray-200 text-gray-500 hover:bg-green-50 hover:text-green-600 hover:border-green-200 active:scale-95">Low</button>
+          </div>
+          <input type="hidden" id="f_priority" value="">
+        </div>
+        <!-- Task Title -->
+        <div class="col-span-2">
+          <label class="block text-xs font-semibold text-gray-600 mb-1">Task Title *</label>
+          <input id="f_taskTitle" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:ring-1 focus:ring-violet-300 outline-none" placeholder="Short title">
+        </div>
+        <!-- Task Description -->
+        <div class="col-span-2">
+          <label class="block text-xs font-semibold text-gray-600 mb-1">Task Description *</label>
+          <textarea id="f_task" rows="3" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:ring-1 focus:ring-violet-300 outline-none resize-none" placeholder="Detailed description…"></textarea>
+        </div>
+        <!-- Score -->
+        <div class="col-span-1">
+          <label class="block text-xs font-semibold text-gray-600 mb-1.5">Score (Stars)</label>
+          <div class="flex items-center gap-2 h-[38px] px-1" id="starRatingGroup">
+            <div class="flex gap-1.5 text-xl cursor-pointer">
+              <i class="far fa-star text-gray-300 hover:scale-110 transition duration-150 star-item" data-star="1" title="1 Star (5 Score)"></i>
+              <i class="far fa-star text-gray-300 hover:scale-110 transition duration-150 star-item" data-star="2" title="2 Stars (10 Score)"></i>
+              <i class="far fa-star text-gray-300 hover:scale-110 transition duration-150 star-item" data-star="3" title="3 Stars (15 Score)"></i>
+              <i class="far fa-star text-gray-300 hover:scale-110 transition duration-150 star-item" data-star="4" title="4 Stars (20 Score)"></i>
+            </div>
+            <span id="starScoreLabel" class="text-xs font-bold text-amber-500 ml-1">0</span>
+          </div>
+          <input type="hidden" id="f_score" value="">
+        </div>
+        <!-- Due Date -->
+        <div class="col-span-1">
+          <label class="block text-xs font-semibold text-gray-600 mb-1">Due Date *</label>
+          <input id="f_dueDate" type="datetime-local" class="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:ring-1 focus:ring-violet-300 outline-none">
+        </div>
+        <!-- Proof Required -->
+        <div class="col-span-1">
+          <label class="block text-xs font-semibold text-gray-600 mb-1.5">Proof Required</label>
+          <div class="flex gap-2" id="proofGroup">
+            <button type="button" data-val="Yes" class="proof-btn flex-1 py-2 text-xs font-semibold rounded-xl border transition-all duration-200 border-gray-200 text-gray-500 hover:bg-violet-50 hover:text-violet-600 hover:border-violet-200 active:scale-95">Yes</button>
+            <button type="button" data-val="No" class="proof-btn flex-1 py-2 text-xs font-semibold rounded-xl border transition-all duration-200 border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-gray-600 hover:border-gray-200 active:scale-95">No</button>
+          </div>
+          <input type="hidden" id="f_proofRequired" value="No">
+        </div>
+        <!-- Approval Required -->
+        <div class="col-span-1">
+          <label class="block text-xs font-semibold text-gray-600 mb-1.5">Approval Required</label>
+          <div class="flex gap-2" id="approvalGroup">
+            <button type="button" data-val="Yes" class="approval-btn flex-1 py-2 text-xs font-semibold rounded-xl border transition-all duration-200 border-gray-200 text-gray-500 hover:bg-violet-50 hover:text-violet-600 hover:border-violet-200 active:scale-95">Yes</button>
+            <button type="button" data-val="No" class="approval-btn flex-1 py-2 text-xs font-semibold rounded-xl border transition-all duration-200 border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-gray-600 hover:border-gray-200 active:scale-95">No</button>
+          </div>
+          <input type="hidden" id="f_approvalRequired" value="No">
+        </div>
+
+        <!-- Sub-Monitoring -->
+<!-- Sub-Monitoring -->
+       <div class="col-span-2" id="subMonitoringBlock" style="display: block !important;">
+          <label class="block text-xs font-semibold text-gray-600 mb-1.5">Sub-Monitoring</label>
+          <div class="flex flex-col gap-3 bg-indigo-50 border border-indigo-100 rounded-xl px-4 py-3">
+            <div class="flex items-center gap-3">
+           <div class="flex gap-2" id="subMonitorGroup">
+  <button type="button" data-val="Yes" class="submonitor-btn flex-1 py-2 px-4 text-xs font-semibold rounded-xl border transition-all duration-200 border-gray-200 text-gray-500 hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200 active:scale-95">Enable</button>
+  <button type="button" data-val="No" class="submonitor-btn flex-1 py-2 px-4 text-xs font-semibold rounded-xl border transition-all duration-200 bg-gray-500 text-white border-gray-500 active:scale-95">Disable</button>
+</div>
+              <p class="text-xs text-indigo-600 ml-2">Assign someone to monitor this task.</p>
+            </div>
+            
+            <!-- Hidden Dropdown: Appears only when Enable is clicked -->
+            <div id="subMonitorDropdownContainer" style="display:none;" class="w-full">
+              <label class="block text-xs font-semibold text-indigo-700 mb-1">Select Person to Monitor *</label>
+              <select id="f_subMonitoringUser" class="w-full border border-indigo-200 rounded-xl px-3 py-2 text-sm focus:ring-1 focus:ring-indigo-300 outline-none bg-white">
+                <option value="">Select person...</option>
+              </select>
+            </div>
+            
+            <input type="hidden" id="f_subMonitoring" value="No">
+          </div>
+        </div>
+
+        <!-- Document Required (Hidden) -->
+        <div class="col-span-2 hidden">
+          <label class="block text-xs font-semibold text-gray-600 mb-1.5">Document Required</label>
+          <div class="flex gap-2" id="docGroup">
+            <button type="button" data-val="Yes" class="doc-btn flex-1 py-2 text-xs font-semibold rounded-xl border transition-all duration-200 border-gray-200 text-gray-500 hover:bg-teal-50 hover:text-teal-600 hover:border-teal-200 active:scale-95">Yes</button>
+            <button type="button" data-val="No" class="doc-btn flex-1 py-2 text-xs font-semibold rounded-xl border transition-all duration-200 border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-gray-600 hover:border-gray-200 active:scale-95">No</button>
+          </div>
+          <input type="hidden" id="f_docRequired" value="">
+        </div>
+      </div>
+
+    </div>
+    <div class="p-5 border-t bg-gray-50 flex gap-3">
+      <button id="cancelAddBtn" class="flex-1 py-2.5 rounded-xl border border-gray-200 bg-white text-sm text-gray-600 font-medium hover:bg-gray-100 transition">Cancel</button>
+      <button id="submitAddBtn" class="flex-1 py-2.5 bg-gradient-to-r from-violet-500 to-purple-500 hover:from-violet-600 hover:to-purple-600 text-white rounded-xl text-sm font-semibold shadow-md flex items-center justify-center gap-2 transition">
+        <i class="fas fa-save"></i> Save Task
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ── State ──────────────────────────────────────────────────────────────
+  let delegationData = [];
+  let chartData = [];
+  let usersList = [];
+  let allNames = [];
+  let currentPage = 1;
+  let pageSize = 20;
+  let filteredCache = [];
+  let editingTaskId = null;
+
+  // Filter state
+  let filterDelegators  = [];
+  let filterDelegatees  = [];
+  let filterPriorities  = [];
+  let filterDepts       = [];
+  let searchQuery       = '';
+  let currentQuickDate  = 'all';
+
+  var currentUser = localStorage.getItem('erp_logged_user') || '';
+  const currentRole = localStorage.getItem('erp_logged_role') || 'Delegatee';
+  
+ 
+  let filterStatuses = ['Pending', 'Approval Waiting', 'Overdue'];
+
+  window.addEventListener('DOMContentLoaded', () => {
+    // UI filter menu mein automatically in statuses ko 'Checked' kar dega
+    filterStatuses.forEach(status => {
+      const cb = document.querySelector(`.status-cb[value="${status}"]`);
+      if (cb) cb.checked = true;
+    });
+  });
+
+  if (currentRole.toLowerCase() === 'delegatee' || currentRole.toLowerCase() === 'user') {
+    const addTaskBtn = document.getElementById('openAddModalBtn');
+    if (addTaskBtn) addTaskBtn.style.display = 'none'; // Hides the Add Task button
+    
+    const bulkDeleteBtn = document.getElementById('bulkDeleteBtnContainer');
+    if (bulkDeleteBtn) bulkDeleteBtn.style.display = 'none'; // Prevents bulk delete operations
+  }
+
+  // ── Helpers ────────────────────────────────────────────────────────────
+
+  // ── Helpers ────────────────────────────────────────────────────────────
+  function showToast(msg, icon = 'success') {
+    Swal.fire({ toast: true, position: 'top-end', icon, title: msg, showConfirmButton: false, timer: 2200, timerProgressBar: true });
+  }
+  function esc(s) {
+    return s ? String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])) : '';
+  }
+  function fmtDate(d) {
+    if (!d) return '';
+    try { return new Date(d).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'2-digit'}); } catch { return d; }
+  }
+
+  function parseDateTimeString(str) {
+    if (!str) return null;
+    let d = new Date(str);
+    if (!isNaN(d.getTime())) return d;
+    
+    // Manual parse for "dd mmm yy HH:mm:ss" format
+    try {
+      const parts = String(str).trim().split(/\s+/);
+      if (parts.length >= 4) {
+        const day = parseInt(parts[0]);
+        const monthStr = parts[1];
+        const yearStr = parts[2];
+        const timeStr = parts[3];
+        
+        const monthNames = {
+          jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
+          jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11
+        };
+        const month = monthNames[monthStr.toLowerCase().substring(0, 3)];
+        if (month === undefined) return null;
+        let year = parseInt(yearStr);
+        if (year < 100) year += 2000;
+        
+        const timeParts = timeStr.split(':');
+        const hrs = parseInt(timeParts[0] || 0);
+        const mins = parseInt(timeParts[1] || 0);
+        const secs = parseInt(timeParts[2] || 0);
+        
+        return new Date(year, month, day, hrs, mins, secs);
+      }
+    } catch (e) {
+      return null;
+    }
+    return null;
+  }
+
+  // ── Role Switcher ──────────────────────────────────────────────────────
+  let currentRoleSwitcher = 'all';
+function initRoleSwitcher() {
+   const c = document.getElementById('roleSwitcherContainer');
+    if (!c) return;
+    if (currentRole === 'Delegatee') { currentRoleSwitcher = 'tome'; c.classList.add('hidden'); return; }
+    
+    // ADDED ADMIN & PC ROLES: Grants them the "All" tab view
+    const opts = (currentRole === 'Delegator' || currentRole === 'Admin' || currentRole === 'PC')
+      ? [{label:'All',val:'all'},{label:'By Me',val:'byme'},{label:'To Me',val:'tome'}]
+      : [{label:'By Me',val:'byme'},{label:'To Me',val:'tome'}];
+    currentRoleSwitcher = opts[0].val;
+    c.classList.remove('hidden');
+    c.innerHTML = `<div class="flex bg-gray-100 rounded-full p-0.5 border border-gray-200 shadow-inner">
+      ${opts.map((o,i)=>`<button class="role-btn px-4 py-1.5 rounded-full text-xs font-semibold transition-all duration-200 ${i===0?'bg-white text-violet-600 shadow':'text-gray-500 hover:text-gray-700'}" data-val="${o.val}">${o.label}</button>`).join('')}
+    </div>`;
+    c.querySelectorAll('.role-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        c.querySelectorAll('.role-btn').forEach(b => { b.classList.remove('bg-white','text-violet-600','shadow'); b.classList.add('text-gray-500'); });
+        btn.classList.add('bg-white','text-violet-600','shadow'); btn.classList.remove('text-gray-500');
+        currentRoleSwitcher = btn.getAttribute('data-val');
+        currentPage = 1; applyFiltersAndRender();
+      });
+    });
+  }
+
+  // function applyRoleFilter(data) {
+  //   if (currentRole === 'Delegatee') return data.filter(r => r['Delegetee'] === currentUser);
+  //   if (currentRoleSwitcher === 'byme') return data.filter(r => r['Delegator'] === currentUser);
+  //   if (currentRoleSwitcher === 'tome') return data.filter(r => r['Delegetee'] === currentUser);
+  //   return data;
+  // }
+
+  // ── Data Loading ───────────────────────────────────────────────────────
+  function loadUsers() {
+    try {
+      if (typeof google === 'undefined' || !google.script || !google.script.run) {
+        throw new Error("google.script.run is not defined");
+      }
+      google.script.run
+        .withSuccessHandler(users => {
+          usersList = users || [];
+          allNames = usersList.map(u => u.name || u);
+           console.log("Loaded Users:", allNames);
+          populateDatalistAll();
+          
+          buildDynamicCheckboxes();
+   populateSubMonitorDropdown(pendingSubMonitorValue);
+        })
+        .withFailureHandler(err => {
+          console.error("Failed to load users:", err);
+          showToast("Failed to load users list", "error");
+        })
+        .getUsersWithEmail();
+    } catch (e) {
+      console.warn("loadUsers fallback:", e.message);
+      usersList = [];
+      allNames = [];
+    }
+  }
+
+  function loadDelegationData() {
+    try {
+      if (typeof google === 'undefined' || !google.script || !google.script.run) {
+        throw new Error("google.script.run is not defined");
+      }
+      google.script.run
+        .withSuccessHandler(data => {
+          // Show latest entry on top by reversing the chronologically ordered array from the spreadsheet
+          console.log("Data received from sheet:", data);
+          if(data.length === 0) console.warn("Sheet is empty or couldn't be read");
+          delegationData = (data || []).reverse();
+          buildDynamicCheckboxes();
+          populateParentTaskOptions();
+          applyFiltersAndRender();
+        })
+        .withFailureHandler(err => {
+          console.error("Failed to load delegation data:", err);
+          const tbody = document.getElementById('delegationTableBody');
+          if (tbody) {
+            tbody.innerHTML = `<tr><td colspan="15" class="text-center py-16">
+              <div class="flex flex-col items-center gap-2 text-red-500">
+                <i class="fas fa-exclamation-triangle text-3xl"></i>
+                <span class="text-sm font-semibold">Error Loading Tasks</span>
+                <span class="text-xs text-gray-400">${esc(err.message || err)}</span>
+              </div></td></tr>`;
+          }
+          showToast("Error loading delegation data", "error");
+        })
+        .getDelegationData();
+    } catch (e) {
+      console.warn("loadDelegationData fallback:", e.message);
+      delegationData = [];
+      const tbody = document.getElementById('delegationTableBody');
+      if (tbody) {
+        tbody.innerHTML = `<tr><td colspan="15" class="text-center py-16">
+          <div class="flex flex-col items-center gap-2 text-yellow-600">
+            <i class="fas fa-info-circle text-3xl"></i>
+            <span class="text-sm font-semibold">Running locally (Demo Mode)</span>
+            <span class="text-xs text-gray-400">No database connection</span>
+          </div></td></tr>`;
+      }
+    }
+  }
+
+ function loadChartData() {
+    try {
+      if (typeof google === 'undefined' || !google.script || !google.script.run) {
+        throw new Error("google.script.run is not defined");
+      }
+      
+      google.script.run
+        .withSuccessHandler(data => {
+          chartData = data || [];
+          // Populate selects immediately after data arrives
+          populateDelegatorOptions();
+          updateDelegateeOptions();
+          
+          // Also refresh if modal is already open
+          const modal = document.getElementById('addModal');
+          if (modal && !modal.classList.contains('hidden')) {
+            populateDelegatorOptions();
+            updateDelegateeOptions();
+          }
+        })
+        .getDoerlistDelegation(); // <--- Make sure this matches your actual Apps Script function name!
+        
+    } catch (e) {
+      console.warn("loadChartData fallback:", e.message);
+      chartData = [];
+    }
+  }
+function populateDelegatorOptions() {
+  const sel = document.getElementById('f_delegator');
+  if (!sel) return;
+
+  // Build names list — prefer chartData, fallback to allNames
+  let names = [];
+  if (chartData && chartData.length > 0) {
+    names = [...new Set(chartData.map(r => r.delegator).filter(Boolean))].sort();
+  }
+  if (names.length === 0 && allNames.length > 0) {
+    names = [...allNames].sort();
+  }
+
+  const current = sel.value;
+  const wasReadonly = sel.hasAttribute('disabled');
+
+  sel.innerHTML = '<option value="">Select delegator...</option>' +
+    names.map(n => `<option value="${esc(n)}" ${n === current ? 'selected' : ''}>${esc(n)}</option>`).join('');
+
+  // Restore selected value
+  if (current) sel.value = current;
+
+  // Re-apply readonly state if it was locked
+  if (wasReadonly) sel.setAttribute('disabled', 'true');
+}
+
+function updateDelegateeOptions() {
+  const sel = document.getElementById('f_delegatee');
+  if (!sel) return;
+
+  // Skip if delegatee is locked (Delegatee role)
+  if (sel.hasAttribute('disabled')) return;
+
+  const selectedDelegator = (document.getElementById('f_delegator')?.value || '').trim();
+  let names = [];
+
+  if (selectedDelegator && chartData.length > 0) {
+    names = chartData
+      .filter(r => r.delegator.toLowerCase() === selectedDelegator.toLowerCase())
+      .map(r => r.delegatee)
+      .filter(Boolean);
+  }
+
+  // Fallback to allNames if no match
+  if (!names.length) {
+    names = [...allNames];
+  }
+
+  names = [...new Set(names)].sort();
+
+  const current = sel.value;
+  sel.innerHTML = '<option value="">Select delegatee...</option>' +
+    names.map(n => `<option value="${esc(n)}" ${n === current ? 'selected' : ''}>${esc(n)}</option>`).join('');
+
+  if (current) sel.value = current;
+}
+
+  function populateParentTaskOptions() {
+    const dlParent = document.getElementById('dl_parentTask');
+    if (!dlParent) return;
+    
+    // Map tasks to value and display label, e.g. "[Task ID] Task Title"
+    const options = delegationData.map(r => {
+      const tid = String(r['Task Id']).trim();
+      const title = String(r['Task Title']).trim();
+      if (!tid) return null;
+      return `${tid} | ${title}`;
+    }).filter(Boolean);
+    
+    const uniqueOptions = [...new Set(options)].sort();
+    dlParent.innerHTML = uniqueOptions.map(o => `<option value="${esc(o)}">`).join('');
+  }
+
+  function populateDatalistAll() {
+    ['dl_delegator','dl_delegatee','dl_dept','dl_parentTask'].forEach(id => {
+      const dl = document.getElementById(id);
+      if (dl) dl.innerHTML = '';
+    });
+    
+    populateDelegatorOptions();
+    updateDelegateeOptions();
+    populateParentTaskOptions();
+    
+    const depts = [...new Set(delegationData.map(r=>r['Department']).filter(Boolean))].sort();
+    const dlDept = document.getElementById('dl_dept');
+    if (dlDept) dlDept.innerHTML = depts.map(d=>`<option value="${esc(d)}">`).join('');
+  }
+
+  // ── Build dynamic filter checkboxes ────────────────────────────────────
+  function buildDynamicCheckboxes() {
+    buildCheckboxList('delegatorCheckboxList', 'delegator-cb',
+      [...new Set(delegationData.map(r=>r['Delegator']).filter(Boolean))].sort(),
+      filterDelegators, document.getElementById('searchDelegator')?.value || '');
+    buildCheckboxList('delegateeCheckboxList', 'delegatee-cb',
+      [...new Set(delegationData.map(r=>r['Delegetee']).filter(Boolean))].sort(),
+      filterDelegatees, document.getElementById('searchDelegatee')?.value || '');
+    buildCheckboxList('deptCheckboxList', 'dept-cb',
+      [...new Set(delegationData.map(r=>r['Department']).filter(Boolean))].sort(),
+      filterDepts, '');
+  }
+
+  function buildCheckboxList(containerId, cbClass, items, selected, query) {
+    const c = document.getElementById(containerId);
+    if (!c) return;
+    const filtered = query ? items.filter(i => i.toLowerCase().includes(query.toLowerCase())) : items;
+    if (!filtered.length) { c.innerHTML = '<p class="text-xs text-gray-400 p-3 text-center">No matches</p>'; return; }
+    c.innerHTML = filtered.map(v => `
+      <label class="flex items-center gap-2.5 px-3 py-2 hover:bg-white cursor-pointer transition">
+        <input type="checkbox" class="${cbClass} accent-violet-600 w-3.5 h-3.5" value="${esc(v)}" ${selected.includes(v)?'checked':''}>
+        <span class="text-sm text-gray-700">${esc(v)}</span>
+      </label>`).join('');
+  }
+
+  document.getElementById('searchDelegator')?.addEventListener('input', function() {
+    buildCheckboxList('delegatorCheckboxList','delegator-cb',
+      [...new Set(delegationData.map(r=>r['Delegator']).filter(Boolean))].sort(), filterDelegators, this.value);
+  });
+  document.getElementById('searchDelegatee')?.addEventListener('input', function() {
+    buildCheckboxList('delegateeCheckboxList','delegatee-cb',
+      [...new Set(delegationData.map(r=>r['Delegetee']).filter(Boolean))].sort(), filterDelegatees, this.value);
+  });
+
+  // ── Filter badge ───────────────────────────────────────────────────────
+  function updateFilterBadge() {
+    const total = filterDelegators.length + filterDelegatees.length + filterPriorities.length + filterStatuses.length + filterDepts.length;
+    const badge = document.getElementById('filterBadge');
+    if (!badge) return;
+    if (total > 0) { badge.textContent = total; badge.classList.remove('hidden'); }
+    else badge.classList.add('hidden');
+  }
+
+  function readFilterPanel() {
+    filterDelegators = [...document.querySelectorAll('.delegator-cb:checked')].map(cb=>cb.value);
+    filterDelegatees = [...document.querySelectorAll('.delegatee-cb:checked')].map(cb=>cb.value);
+    filterPriorities = [...document.querySelectorAll('.priority-cb:checked')].map(cb=>cb.value);
+    filterStatuses   = [...document.querySelectorAll('.status-cb:checked')].map(cb=>cb.value);
+    filterDepts      = [...document.querySelectorAll('.dept-cb:checked')].map(cb=>cb.value);
+  }
+
+// ── Apply filters (Fixed for Delegation.html) ───────────────────────
+function applyFiltersAndRender() {
+    // FIXED: Changed allTasks to delegationData
+    let data = applyRoleFilter([...delegationData]);
+    
+    // 1. Existing Multi-select filters
+    if (filterDelegators.length)  data = data.filter(r => filterDelegators.includes(r['Delegator']));
+    if (filterDelegatees.length)  data = data.filter(r => filterDelegatees.includes(r['Delegetee']));
+    if (filterPriorities.length)  data = data.filter(r => filterPriorities.includes(r['Prority']));
+    if (filterStatuses.length)    data = data.filter(r => filterStatuses.includes(r['Status']));
+    if (filterDepts.length)       data = data.filter(r => filterDepts.includes(r['Department']));
+    
+    const fromDate = document.getElementById('filterFromDate').value;
+    const toDate = document.getElementById('filterToDate').value;
+    
+    const todayLocal = new Date();
+    const todayStr = `${todayLocal.getFullYear()}-${String(todayLocal.getMonth() + 1).padStart(2, '0')}-${String(todayLocal.getDate()).padStart(2, '0')}`;
+
+    // Date safety check
+    if ((fromDate && fromDate > todayStr) || (toDate && toDate > todayStr)) {
+        showToast("Future dates cannot be selected!", "error");
+        return; 
+    }
+
+    // 2. Manual Date Range Filter
+    if (fromDate || toDate) {
+      data = data.filter(r => {
+        const dStr = r['Revised Date'] || r['Due Date'];
+        if (!dStr) return false;
+        const d = parseDateTimeString(dStr);
+        if (!d) return false;
+        
+        const dateStr = getLocalISODate(d);
+        
+        let match = true;
+        if (fromDate) match = match && (dateStr >= fromDate);
+        if (toDate) match = match && (dateStr <= toDate);
+        return match;
+      });
+    } 
+  
+
+    // 3. Search Query Logic
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      data = data.filter(r =>
+        (r['Task Title']||'').toLowerCase().includes(q) ||
+        (r['Task']||'').toLowerCase().includes(q) ||
+        (r['Delegator']||'').toLowerCase().includes(q) ||
+        (r['Delegetee']||'').toLowerCase().includes(q) ||
+        (r['Task Id']||'').toString().toLowerCase().includes(q) ||
+        (r['Sub Monitoring']||'').toLowerCase().includes(q)
+      );
+    }
+
+    filteredCache = data;
+    updateFilterBadge();
+    renderTable(data);
+}// ── Priority & Status pill styles ──────────────────────────────────────
+  const priorityStyles = {
+    High:   'bg-red-100 text-red-700',
+    Medium: 'bg-amber-100 text-amber-700',
+    Low:    'bg-green-100 text-green-700'
+  };
+  const statusStyles = {
+    'Pending':              'bg-orange-100 text-orange-700',
+    'Approval Waiting':     'bg-blue-100 text-blue-700',
+    'Completed':            'bg-emerald-100 text-emerald-700',
+    'Completed With Delay': 'bg-purple-100 text-purple-700',
+    'Overdue':              'bg-red-100 text-red-700'
+  };
+  const statusIcons = {
+    'Pending':              'fa-clock',
+    'Approval Waiting':     'fa-user-clock',
+    'Completed':            'fa-check-circle',
+    'Completed With Delay': 'fa-check-double',
+    'Overdue':              'fa-exclamation-circle'
+  };
+
+function applyRoleFilter(data) {
+    const normUser = (currentUser || '').trim().toLowerCase();
+    
+    return data.filter(r => {
+      const isDelegator = (r['Delegator'] || '').trim().toLowerCase() === normUser;
+      const isDelegatee = (r['Delegetee'] || '').trim().toLowerCase() === normUser;
+      const isSubMonitor = (r['Sub Monitoring'] || '').trim().toLowerCase() === normUser;
+      const isCompleted = String(r['Status'] || '').includes('Completed');
+      
+      // AUTO-REMOVE FEATURE for Sub-Monitors
+      if (isSubMonitor && !isDelegator && !isDelegatee && isCompleted) {
+        return false;
+      }
+      
+      // LOGIC FIX for All / By Me / To Me tabs
+      if (currentRoleSwitcher === 'all') return true; // Show everything if 'All' is selected
+      if (currentRoleSwitcher === 'byme') return isDelegator || isSubMonitor;
+      if (currentRoleSwitcher === 'tome') return isDelegatee || isSubMonitor;
+      
+      // Default: If role is Delegatee
+      if (currentRole === 'Delegatee') return isDelegatee || isSubMonitor;
+      
+      return false; 
+    });
+}
+  // ── Table Rendering ────────────────────────────────────────────────────
+  function renderTable(data) {
+    const tbody = document.getElementById('delegationTableBody');
+    const pgBar = document.getElementById('paginationBar');
+    if (!tbody) return;
+
+    // Reset select all checkbox and delete selected button state
+    const selectAll = document.getElementById('selectAllCb');
+    if (selectAll) selectAll.checked = false;
+    const bulkContainer = document.getElementById('bulkDeleteBtnContainer');
+    if (bulkContainer) {
+      bulkContainer.classList.add('translate-y-20', 'opacity-0', 'pointer-events-none');
+      bulkContainer.classList.remove('translate-y-0', 'opacity-100');
+    }
+
+    if (!data.length) {
+      tbody.innerHTML = `<tr><td colspan="22" class="text-center py-16">
+        <div class="flex flex-col items-center gap-2 text-gray-400">
+          <i class="fas fa-inbox text-3xl"></i><span class="text-sm">No tasks found</span>
+        </div></td></tr>`;
+      pgBar.classList.add('hidden'); return;
+    }
+
+    const total = data.length;
+    const totalPages = Math.max(1, Math.ceil(total / pageSize));
+    if (currentPage > totalPages) currentPage = totalPages;
+    const pageData = data.slice((currentPage-1)*pageSize, currentPage*pageSize);
+
+    tbody.innerHTML = '';
+    pageData.forEach((row, idx) => {
+      const parsedDueDate = parseDateTimeString(row['Due Date']);
+      const isOverdue = parsedDueDate && parsedDueDate < new Date() && row['Status'] !== 'Completed';
+      const priorCls  = priorityStyles[row['Prority']] || 'bg-gray-100 text-gray-600';
+      const statusCls = statusStyles[row['Status']]   || 'bg-gray-100 text-gray-600';
+      const statusIco = statusIcons[row['Status']]    || 'fa-circle';
+      const avatarLetter = (row['Delegetee']||'?').charAt(0).toUpperCase();
+
+      // Determine latest remark and history state
+      let latestRemark = '';
+      let hasHistory = false;
+      const rawRemark = row['Remark'];
+      if (rawRemark) {
+        try {
+          const parsed = JSON.parse(rawRemark);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            latestRemark = parsed[parsed.length - 1].remark;
+            hasHistory = true;
+          } else {
+            latestRemark = String(rawRemark);
+          }
+        } catch (e) {
+          latestRemark = String(rawRemark);
+        }
+      }
+
+      // Format individual inline requirements badges
+      let reqBadges = '';
+      if (row['Proof Required'] === 'Yes') {
+        reqBadges += `<span class="inline-flex items-center gap-0.5 bg-amber-50 text-amber-700 border border-amber-100 px-1.5 py-0.5 rounded text-[10px]" title="Proof of Completion Required"><i class="fas fa-paperclip text-[9px]"></i> Proof</span> `;
+      }
+      if (row['Approval Required'] === 'Yes') {
+        reqBadges += `<span class="inline-flex items-center gap-0.5 bg-violet-50 text-violet-700 border border-violet-100 px-1.5 py-0.5 rounded text-[10px]" title="Approval Required"><i class="fas fa-user-check text-[9px]"></i> Approval</span> `;
+      }
+      if (row['Document Required'] === 'Yes') {
+        reqBadges += `<span class="inline-flex items-center gap-0.5 bg-teal-50 text-teal-700 border border-teal-100 px-1.5 py-0.5 rounded text-[10px]" title="Document Required"><i class="fas fa-file-signature text-[9px]"></i> Doc</span> `;
+      }
+      if (!reqBadges) {
+        reqBadges = '<span class="text-gray-300 text-xs">—</span>';
+      }
+
+      // Priority and Score layout
+      const scoreVal = row['Score'] !== '' ? esc(row['Score']) : '';
+      let scoreHTML = '<span class="text-gray-300 text-xs">—</span>';
+      if (scoreVal) {
+        let starsCount = 0;
+        const pts = Number(scoreVal);
+        if (pts >= 20) starsCount = 4;
+        else if (pts >= 15) starsCount = 3;
+        else if (pts >= 10) starsCount = 2;
+        else if (pts >= 5) starsCount = 1;
+
+        let starsActiveHTML = '';
+        for (let s = 1; s <= 4; s++) {
+          if (s <= starsCount) {
+            starsActiveHTML += '<i class="fas fa-star text-amber-400 text-[10px]"></i>';
+          } else {
+            starsActiveHTML += '<i class="far fa-star text-gray-200 text-[10px]"></i>';
+          }
+        }
+        scoreHTML = `<div class="flex items-center gap-1"><span class="font-bold text-gray-700 text-sm">${pts}</span> <div class="flex">${starsActiveHTML}</div></div>`;
+      }
+
+      const tr = document.createElement('tr');
+      tr.className = `hover:bg-violet-50/30 transition-colors duration-100 ${idx%2===1?'bg-gray-50/50':''}`;
+      tr.innerHTML = `
+        <!-- Column 0: Select (sticky) -->
+        <td class="sticky-col-0 px-4 py-3.5 text-center">
+          <input type="checkbox" class="task-row-cb rounded border-gray-200 text-violet-600 focus:ring-violet-300" data-task-id="${esc(row['Task Id'])}">
+        </td>
+
+        <!-- Column 1: Action (sticky) -->
+        <td class="sticky-col-1 px-4 py-3.5">
+          <div class="flex items-center justify-center gap-1">
+            <button class="editRowBtn w-7 h-7 flex items-center justify-center rounded-full hover:bg-blue-100 text-gray-300 hover:text-blue-500 transition"
+               data-task-id="${esc(row['Task Id'])}">
+              <i class="fas fa-pencil-alt text-xs"></i>
+            </button>
+            <button class="rowRemarkBtn w-7 h-7 flex items-center justify-center rounded-full hover:bg-violet-100 text-gray-300 hover:text-violet-600 transition"
+               data-task-id="${esc(row['Task Id'])}" title="Add Remark / Update Status">
+              <i class="fas fa-comment-dots text-xs"></i>
+            </button>
+            <button class="deleteRowBtn w-7 h-7 flex items-center justify-center rounded-full hover:bg-red-100 text-gray-300 hover:text-red-500 transition"
+               data-task-id="${esc(row['Task Id'])}">
+              <i class="fas fa-trash-alt text-xs"></i>
+            </button>
+          </div>
+        </td>
+
+        <!-- Column 2: ID & Creation (sticky) -->
+        <td class="sticky-col-2 px-4 py-3.5 text-left">
+          <span class="font-mono text-sm bg-gray-100 text-gray-700 px-2.5 py-0.5 rounded-lg font-bold">${esc(row['Task Id'])}</span>
+          <div class="text-[11px] text-gray-400 mt-1.5" title="Creation Date">${esc(row['Timestamp'])}</div>
+        </td>
+
+        <!-- Column 3: Delegation Flow (sticky) -->
+       <!-- Column 3: Delegation Flow (sticky) -->
+        <td class="sticky-col-3 px-4 py-3.5">
+          <div class="text-xs text-gray-400 mb-1">From: <span class="font-semibold text-gray-600">${esc(row['Delegator'])}</span></div>
+          <div class="flex items-center gap-1.5 mt-0.5">
+            <div class="w-5 h-5 rounded-full bg-gradient-to-br from-violet-400 to-purple-500 flex items-center justify-center text-white text-[10px] font-bold shrink-0">${avatarLetter}</div>
+            <span class="text-sm font-semibold text-gray-800 whitespace-nowrap truncate max-w-[110px]" title="Delegatee: ${esc(row['Delegetee'])}">${esc(row['Delegetee'])}</span>
+          </div>
+          ${(() => {
+            const subMon = String(row['Sub Monitoring'] || '').trim();
+            if (subMon && subMon !== 'No' && subMon !== '') {
+              return '<div class="mt-2 inline-flex items-center gap-1 bg-indigo-100 text-indigo-700 border border-indigo-200 px-2 py-0.5 rounded-md text-[10px] font-bold shadow-sm" title="Monitored by: ' + esc(subMon) + '">' +
+                '<i class="fas fa-eye text-[9px]"></i> Monitor: ' + esc(subMon) +
+              '</div>';
+            }
+            return '';
+          })()}
+        </td>
+        <!-- Column 4: Parent & Dept (sticky) -->
+        <td class="sticky-col-4 px-4 py-3.5 text-xs">
+          <div class="truncate text-sm font-medium text-gray-600" title="Parent Task: ${esc(row['Parent Task'])}">
+            <i class="fas fa-sitemap text-[10px] mr-1 text-gray-400"></i>${esc(row['Parent Task'])||'—'}
+          </div>
+          <div class="truncate text-xs text-gray-400 mt-1" title="Department: ${esc(row['Department'])}">
+            <i class="fas fa-building text-[10px] mr-1 text-gray-300"></i>${esc(row['Department'])||'—'}
+          </div>
+        </td>
+
+        <!-- Column 5: Task Details -->
+        <!-- Column 5: Task Details -->
+        <td class="px-4 py-3.5 min-w-[250px] max-w-[400px]">
+          <div class="text-base font-bold text-gray-800 break-words whitespace-normal">${esc(row['Task Title'])}</div>
+          <div class="text-sm text-gray-400 mt-1 break-words whitespace-normal leading-relaxed">${esc(row['Task'])}</div>
+        </td>
+
+        <!-- Column 6: Priority & Score -->
+        <td class="px-4 py-3.5 text-xs">
+          <div><span class="px-2.5 py-0.5 rounded-full text-xs font-bold ${priorCls}">${esc(row['Prority'])||'—'}</span></div>
+          <div class="mt-2">${scoreHTML}</div>
+        </td>
+
+        <!-- Column 7: Due Date & Status -->
+        <td class="px-4 py-3.5 text-xs">
+          <div>
+            <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold ${statusCls}">
+              <i class="fas ${statusIco} text-[10px]"></i> ${esc(row['Status'])||'—'}
+            </span>
+          </div>
+          <div class="mt-1.5 text-xs whitespace-nowrap ${isOverdue?'text-red-600 font-bold':'text-gray-400'}">
+            ${isOverdue?'<i class="fas fa-exclamation-circle mr-1"></i>':''}${esc(row['Due Date'])}
+          </div>
+        </td>
+
+        <!-- Column 8: Requirements -->
+        <td class="px-4 py-3.5">
+          <div class="flex flex-wrap gap-1 max-w-[150px]">${reqBadges}</div>
+        </td>
+
+        <!-- Column 9: Revision Details -->
+        <td class="px-4 py-3.5 text-xs text-gray-600">
+          <div class="text-sm font-semibold truncate max-w-[120px]" title="Revised Date">${esc(row['Revised Date']) || '<span class="text-gray-300">—</span>'}</div>
+          <div class="text-xs text-gray-400 mt-1.5"><i class="fas fa-redo text-[10px] mr-1 text-gray-300"></i>${row['Count of Revisions'] != null ? esc(row['Count of Revisions']) : '0'} revisions</div>
+        </td>
+
+        <!-- Column 10: Remark -->
+        <td class="px-4 py-3.5 text-sm text-gray-700 max-w-[150px]">
+          <div class="flex items-center gap-1.5 justify-between font-semibold">
+            <span class="truncate block max-w-[110px]" title="${esc(latestRemark)}">${esc(latestRemark) || '<span class="text-gray-300">—</span>'}</span>
+            ${hasHistory ? `<button class="viewRemarkHistoryBtn text-violet-500 hover:text-violet-700 transition" data-task-id="${esc(row['Task Id'])}" title="View Remark History"><i class="fas fa-history text-xs"></i></button>` : ''}
+          </div>
+        </td>
+
+        <!-- Column 11: Proof & Completion -->
+        <td class="px-4 py-3.5 text-sm text-gray-600">
+          <div>
+            ${(() => {
+              const proofVal = String(row['Proof of Completion'] || '').trim();
+              if (!proofVal) return '<span class="text-gray-300">—</span>';
+              
+              // Check if the value is a URL
+              const isUrl = /^(https?:\/\/|www\.)[^\s/$.?#].[^\s]*$/i.test(proofVal) || 
+                            proofVal.includes('/') || 
+                            proofVal.toLowerCase().includes('drive.google.com');
+              
+              if (isUrl) {
+                const url = proofVal.startsWith('http') ? proofVal : 'https://' + proofVal;
+                return `
+                  <a href="${esc(url)}" target="_blank" class="inline-flex items-center gap-1.5 bg-violet-50 hover:bg-violet-100 text-violet-700 hover:text-violet-900 border border-violet-200 hover:border-violet-300 px-2.5 py-1 rounded-lg text-xs font-bold transition shadow-sm" title="Open Proof in New Tab">
+                    <i class="fas fa-external-link-alt text-[10px]"></i> View Proof
+                  </a>
+                `;
+              } else {
+                return `<span class="truncate max-w-[130px] font-semibold text-gray-700 block" title="${esc(proofVal)}">${esc(proofVal)}</span>`;
+              }
+            })()}
+          </div>
+          <div class="text-xs text-gray-400 mt-1.5 whitespace-nowrap"><i class="far fa-clock text-[10px] mr-1 text-gray-300"></i>${esc(row['Completion Time']) || '<span class="text-gray-300">—</span>'}</div>
+        </td>`;
+
+      tbody.appendChild(tr);
+    });
+
+    // Edit buttons
+    tbody.querySelectorAll('.editRowBtn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const tid = btn.getAttribute('data-task-id');
+        const row = delegationData.find(r => String(r['Task Id']) === String(tid));
+        if (row) openEditModal(row);
+      });
+    });
+
+    // Delete buttons
+    tbody.querySelectorAll('.deleteRowBtn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const tid = btn.getAttribute('data-task-id');
+        Swal.fire({ title:'Delete this task?', text:'This action cannot be undone.',
+          icon:'warning', showCancelButton:true, confirmButtonColor:'#ef4444', confirmButtonText:'Yes, delete' })
+        .then(res => {
+          if (res.isConfirmed)
+            google.script.run.withSuccessHandler(r => {
+              if (r.success) { showToast(r.message); loadDelegationData(); }
+              else showToast(r.message,'error');
+            }).deleteDelegationEntry(tid);
+        });
+      });
+    });
+
+    // Select All checkbox listener
+    const selectAllCb = document.getElementById('selectAllCb');
+    if (selectAllCb) {
+      selectAllCb.addEventListener('change', function() {
+        const checked = this.checked;
+        tbody.querySelectorAll('.task-row-cb').forEach(cb => {
+          cb.checked = checked;
+          const tr = cb.closest('tr');
+          updateRowHighlight(tr, checked);
+        });
+        updateBulkDeleteBtnState();
+      });
+    }
+
+    // Row checkbox listeners
+    tbody.querySelectorAll('.task-row-cb').forEach(cb => {
+      cb.addEventListener('change', function() {
+        const tr = this.closest('tr');
+        updateRowHighlight(tr, this.checked);
+
+        const allChecked = tbody.querySelectorAll('.task-row-cb').length === tbody.querySelectorAll('.task-row-cb:checked').length;
+        if (selectAllCb) selectAllCb.checked = allChecked;
+        updateBulkDeleteBtnState();
+      });
+    });
+
+    // Row click listeners to select whole row
+    tbody.querySelectorAll('tr').forEach(tr => {
+      tr.addEventListener('click', function(e) {
+        if (e.target.closest('button') || e.target.closest('input') || e.target.closest('a')) {
+          return;
+        }
+        const cb = tr.querySelector('.task-row-cb');
+        if (cb) {
+          cb.checked = !cb.checked;
+          cb.dispatchEvent(new Event('change'));
+        }
+      });
+    });
+
+    // View Remark History click event
+    tbody.querySelectorAll('.viewRemarkHistoryBtn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const tid = btn.getAttribute('data-task-id');
+        viewRemarkHistory(tid);
+      });
+    });
+
+    // Row Remark / Comment action buttons click
+    tbody.querySelectorAll('.rowRemarkBtn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const tid = btn.getAttribute('data-task-id');
+        openSingleTaskRemark(tid);
+      });
+    });
+
+    function updateRowHighlight(tr, checked) {
+      if (checked) {
+        tr.classList.add('bg-violet-50/80', 'border-l-4', 'border-l-violet-500');
+      } else {
+        tr.classList.remove('bg-violet-50/80', 'border-l-4', 'border-l-violet-500');
+      }
+    }
+
+    function updateBulkDeleteBtnState() {
+      const checkedCbs = tbody.querySelectorAll('.task-row-cb:checked');
+      const bulkContainer = document.getElementById('bulkDeleteBtnContainer');
+      const countLabels = bulkContainer ? bulkContainer.querySelectorAll('.selected-count') : [];
+      if (bulkContainer) {
+        if (checkedCbs.length > 0) {
+          countLabels.forEach(el => el.textContent = checkedCbs.length);
+          bulkContainer.classList.remove('translate-y-20', 'opacity-0', 'pointer-events-none');
+          bulkContainer.classList.add('translate-y-0', 'opacity-100');
+        } else {
+          bulkContainer.classList.add('translate-y-20', 'opacity-0', 'pointer-events-none');
+          bulkContainer.classList.remove('translate-y-0', 'opacity-100');
+        }
+      }
+    }
+
+    function unselectAllRows() {
+      tbody.querySelectorAll('.task-row-cb').forEach(cb => {
+        cb.checked = false;
+        const tr = cb.closest('tr');
+        if (tr) updateRowHighlight(tr, false);
+      });
+      const selectAllCb = document.getElementById('selectAllCb');
+      if (selectAllCb) selectAllCb.checked = false;
+      updateBulkDeleteBtnState();
+    }
+    window.unselectAllRows = unselectAllRows;
+
+    renderPagination(total, totalPages);
+  }
+
+  // ── Pagination ─────────────────────────────────────────────────────────
+  function renderPagination(total, totalPages) {
+    const pgBar = document.getElementById('paginationBar');
+    if (totalPages <= 1) { pgBar.classList.add('hidden'); return; }
+    pgBar.classList.remove('hidden');
+    const start = (currentPage-1)*pageSize+1, end = Math.min(currentPage*pageSize, total);
+    document.getElementById('paginationInfo').textContent = `Showing ${start}–${end} of ${total} tasks`;
+    const pgNumbers = document.getElementById('pgNumbers');
+    pgNumbers.innerHTML = '';
+    let sp = Math.max(1, currentPage-2), ep = Math.min(totalPages, sp+4);
+    if (ep-sp < 4) sp = Math.max(1, ep-4);
+    for (let p = sp; p <= ep; p++) {
+      const btn = document.createElement('button');
+      btn.textContent = p;
+      btn.className = `w-7 h-7 rounded-lg text-xs font-semibold border transition ${p===currentPage?'bg-violet-600 text-white border-violet-600 shadow':'bg-white text-gray-600 border-gray-200 hover:bg-violet-50 hover:border-violet-300'}`;
+      btn.addEventListener('click', () => { currentPage=p; renderTable(filteredCache); });
+      pgNumbers.appendChild(btn);
+    }
+    const pf=document.getElementById('pgFirst'),pp=document.getElementById('pgPrev'),pn=document.getElementById('pgNext'),pl=document.getElementById('pgLast');
+    pf.disabled=pp.disabled=currentPage===1;
+    pn.disabled=pl.disabled=currentPage===totalPages;
+    pf.onclick=()=>{currentPage=1;renderTable(filteredCache);};
+    pp.onclick=()=>{if(currentPage>1){currentPage--;renderTable(filteredCache);}};
+    pn.onclick=()=>{if(currentPage<totalPages){currentPage++;renderTable(filteredCache);}};
+    pl.onclick=()=>{currentPage=totalPages;renderTable(filteredCache);};
+  }
+
+  // ── Add / Edit Modal ───────────────────────────────────────────────────
+  // ── Add / Edit Modal ───────────────────────────────────────────────────
+function openAddModal() {
+  editingTaskId = null;
+  document.getElementById('addModalTitle').innerHTML = '<i class="fas fa-plus-circle text-violet-500 mr-2"></i> Add Task';
+  document.getElementById('submitAddBtn').innerHTML = '<i class="fas fa-save mr-2"></i> Save Task';
+  clearForm();
+
+  // Populate dropdowns fresh each time modal opens
+  populateDelegatorOptions();
+
+  const fDelegator = document.getElementById('f_delegator');
+  const fDelegatee = document.getElementById('f_delegatee');
+  const normRole = String(currentRole || '').trim().toLowerCase();
+  const isLockedRole = (normRole === 'delegator' || normRole === 'delegatee' || normRole === 'user');
+
+  if (fDelegator) {
+    // Always ensure the logged-in user exists as an option
+    if (currentUser) {
+      const exists = [...fDelegator.options].some(o => o.value === currentUser);
+      if (!exists) {
+        const opt = document.createElement('option');
+        opt.value = currentUser;
+        opt.textContent = currentUser;
+        fDelegator.appendChild(opt);
+      }
+      // Default the field to the logged-in user for EVERY role
+      fDelegator.value = currentUser;
+    }
+
+    if (isLockedRole) {
+      fDelegator.setAttribute('disabled', 'true');
+      fDelegator.style.backgroundColor = '#f3f4f6';
+      fDelegator.style.cursor = 'not-allowed';
+    } else {
+      // Admin / PC / Boss — pre-filled but still changeable
+      fDelegator.removeAttribute('disabled');
+      fDelegator.style.backgroundColor = '';
+      fDelegator.style.cursor = '';
+    }
+  }
+
+  if (fDelegatee) {
+    fDelegatee.removeAttribute('disabled');
+    fDelegatee.style.backgroundColor = '';
+    fDelegatee.style.cursor = '';
+  }
+
+  // Refresh delegatee list based on the now-set delegator
+  updateDelegateeOptions();
+  initSubMonitoringVisibility();
+  openModal('addModal', 'addSlidePanel');
+}
+  function openEditModal(row) {
+    editingTaskId = row['Task Id'];
+    document.getElementById('addModalTitle').innerHTML = '<i class="fas fa-pencil-alt text-violet-500 mr-2"></i> Edit Task';
+    document.getElementById('submitAddBtn').innerHTML = '<i class="fas fa-save mr-2"></i> Update Task';
+    
+    const fDelegator = document.getElementById('f_delegator');
+    if (fDelegator) {
+      fDelegator.value = row['Delegator'] || '';
+      if (currentRole === 'Delegator') {
+        fDelegator.setAttribute('readonly', 'true');
+        fDelegator.style.backgroundColor = '#f3f4f6';
+        fDelegator.style.cursor = 'not-allowed';
+      } else {
+        fDelegator.removeAttribute('readonly');
+        fDelegator.style.backgroundColor = '';
+        fDelegator.style.cursor = '';
+      }
+    }
+    
+    document.getElementById('f_delegatee').value      = row['Delegetee']       || '';
+    document.getElementById('f_parentTask').value     = row['Parent Task']     || '';
+    document.getElementById('f_department').value     = row['Department']      || '';
+    document.getElementById('f_taskTitle').value      = row['Task Title']      || '';
+    document.getElementById('f_task').value           = row['Task']            || '';
+    setScoreValue(row['Score'] || '');
+    
+    // Set custom button values
+    setPriorityValue(row['Prority'] || '');
+    setProofValue(row['Proof Required'] || 'No');
+    setApprovalValue(row['Approval Required'] || 'No');
+    setDocValue(row['Document Required'] || 'No');
+
+
+   const subMonVal = String(row['Sub Monitoring'] || '').trim();
+if (subMonVal && subMonVal !== 'No' && subMonVal !== '') {
+  setSubMonitorValue('Yes', subMonVal);   // pass the name directly now
+} else {
+  setSubMonitorValue('No', '');
+}
+    // Due Date parsing for datetime-local
+    const dd = row['Due Date'];
+    if (dd) {
+      try {
+        const parsed = parseDateTimeString(dd);
+        if (parsed && !isNaN(parsed.getTime())) {
+          const offset = parsed.getTimezoneOffset();
+          const localDate = new Date(parsed.getTime() - (offset * 60000));
+          document.getElementById('f_dueDate').value = localDate.toISOString().slice(0, 16);
+        } else {
+          document.getElementById('f_dueDate').value = '';
+        }
+      } catch (e) {
+        document.getElementById('f_dueDate').value = '';
+      }
+    } else {
+      document.getElementById('f_dueDate').value = '';
+    }
+    updateDelegateeOptions();
+    initSubMonitoringVisibility();
+    openModal('addModal','addSlidePanel');
+  }
+
+  // Set default values inside clearForm
+  function clearForm() {
+    ['f_delegator','f_delegatee','f_parentTask','f_department','f_taskTitle','f_task','f_score','f_dueDate'].forEach(id => {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.value = '';
+  // Re-enable selects (in case they were locked from a previous open)
+  if (el.tagName === 'SELECT') {
+    el.removeAttribute('disabled');
+    el.style.backgroundColor = '';
+    el.style.cursor = '';
+  }
+});
+    setPriorityValue('');
+    setProofValue('No');
+    setApprovalValue('No');
+    setDocValue('No');
+    setScoreValue('');
+     setSubMonitorValue('No');
+    
+    const fDelegator = document.getElementById('f_delegator');
+    if (fDelegator) {
+      if (currentRole === 'Delegator') {
+        fDelegator.value = currentUser;
+        fDelegator.setAttribute('readonly', 'true');
+        fDelegator.style.backgroundColor = '#f3f4f6';
+        fDelegator.style.cursor = 'not-allowed';
+      } else {
+        fDelegator.removeAttribute('readonly');
+        fDelegator.style.backgroundColor = '';
+        fDelegator.style.cursor = '';
+      }
+    }
+    
+    updateDelegateeOptions();
+    populateDelegatorOptions();
+
+   
+  }
+
+  function submitForm() {
+   const delegator = (document.getElementById('f_delegator').value || '').trim();
+const delegatee = (document.getElementById('f_delegatee').value || '').trim();
+    const taskTitle   = document.getElementById('f_taskTitle').value.trim();
+    const task        = document.getElementById('f_task').value.trim();
+    const dueDate     = document.getElementById('f_dueDate').value;
+    if (!delegator || !delegatee || !taskTitle || !task || !dueDate) {
+      showToast('Please fill all required fields (*)','warning'); return;
+    }
+  // Validate Sub-Monitoring Dropdown if enabled
+    let finalSubMonitoringValue = document.getElementById('f_subMonitoring').value;
+    if (finalSubMonitoringValue === 'Yes') {
+      const selectedMonitor = document.getElementById('f_subMonitoringUser').value.trim();
+      if (!selectedMonitor) {
+        showToast('Please select a person for Sub-Monitoring', 'warning');
+        return;
+      }
+      // If a person is selected, send the person's name to the backend instead of just "Yes"
+      finalSubMonitoringValue = selectedMonitor;
+    }
+
+    const payload = {
+      taskId:           editingTaskId,
+      delegator,
+      delegatee,
+      parentTask:       document.getElementById('f_parentTask').value.trim(),
+      department:       document.getElementById('f_department').value.trim(),
+      taskTitle,
+      task,
+      priority:         document.getElementById('f_priority').value,
+      score:            document.getElementById('f_score').value,
+      dueDate,
+      status:           editingTaskId ? (delegationData.find(r => String(r['Task Id']) === String(editingTaskId))?.['Status'] || 'Pending') : 'Pending',
+      proofRequired:    document.getElementById('f_proofRequired').value,
+      approvalRequired: document.getElementById('f_approvalRequired').value,
+      documentRequired: document.getElementById('f_docRequired').value,
+      subMonitoring:    finalSubMonitoringValue, // Send Name or "No"
+    };
+    const btn = document.getElementById('submitAddBtn');
+    btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-pulse mr-2"></i> Saving…';
+    const fn = editingTaskId ? 'updateDelegationEntry' : 'insertDelegationEntry';
+    google.script.run
+      .withSuccessHandler(res => {
+        btn.disabled = false;
+        btn.innerHTML = editingTaskId ? '<i class="fas fa-save mr-2"></i> Update Task' : '<i class="fas fa-save mr-2"></i> Save Task';
+        if (res.success) { showToast(res.message); closeAddModal(); loadDelegationData(); }
+        else showToast(res.message,'error');
+      })
+      .withFailureHandler(err => {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-save mr-2"></i> Save Task';
+        showToast(err.message,'error');
+      })
+      [fn](payload);
+  }
+
+  // ── Export CSV ─────────────────────────────────────────────────────────
+  function exportToCSV() {
+    if (!delegationData.length) { showToast('No data to export','warning'); return; }
+    const cols = ['Timestamp','Task Id','Delegator','Delegetee','Parent Task','Department','Task Title','Task','Prority','Score','Due Date','Status','Proof Required','Approval Required','Document Required','Revised Date','Count of Revisions','Remark','Proof of Completion','Completion Time'];
+    const rows = [cols.join(',')];
+    delegationData.forEach(r => {
+      rows.push(cols.map(c => {
+        const v = r[c]!=null ? String(r[c]) : '';
+        return v.includes(',')||v.includes('"')||v.includes('\n') ? `"${v.replace(/"/g,'""')}"` : v;
+      }).join(','));
+    });
+    const blob = new Blob([rows.join('\n')],{type:'text/csv'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href=url; a.download=`delegation_export_${new Date().toISOString().slice(0,10)}.csv`;
+    a.click(); URL.revokeObjectURL(url);
+    showToast('Exported successfully');
+  }
+
+  // ── Modal helpers ──────────────────────────────────────────────────────
+  function openModal(mid, sid) { document.getElementById(mid).classList.remove('hidden'); setTimeout(()=>document.getElementById(sid).style.transform='translateX(0)',10); }
+  function closeModal(mid, sid) { document.getElementById(sid).style.transform=''; setTimeout(()=>document.getElementById(mid).classList.add('hidden'),300); }
+  function closeFilterModal() { closeModal('filterModal','filterSlidePanel'); }
+  function closeAddModal()    { closeModal('addModal','addSlidePanel'); }
+
+  // ── Clear section helpers ──────────────────────────────────────────────
+  document.querySelectorAll('.clearSection').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const s = btn.getAttribute('data-section');
+      if (s === 'delegator') { filterDelegators=[]; buildCheckboxList('delegatorCheckboxList','delegator-cb',[...new Set(delegationData.map(r=>r['Delegator']).filter(Boolean))].sort(),[],document.getElementById('searchDelegator')?.value||''); }
+      if (s === 'delegatee') { filterDelegatees=[]; buildCheckboxList('delegateeCheckboxList','delegatee-cb',[...new Set(delegationData.map(r=>r['Delegetee']).filter(Boolean))].sort(),[],document.getElementById('searchDelegatee')?.value||''); }
+      if (s === 'priority')  { filterPriorities=[]; document.querySelectorAll('.priority-cb').forEach(cb=>cb.checked=false); }
+      if (s === 'status')    { filterStatuses=[]; document.querySelectorAll('.status-cb').forEach(cb=>cb.checked=false); }
+      if (s === 'dept')      { filterDepts=[]; buildCheckboxList('deptCheckboxList','dept-cb',[...new Set(delegationData.map(r=>r['Department']).filter(Boolean))].sort(),[],'' ); }
+    });
+  });
+
+  // ── Event wiring ───────────────────────────────────────────────────────
+  document.getElementById('openFilterBtn')?.addEventListener('click', () => {
+    buildDynamicCheckboxes();
+    openModal('filterModal','filterSlidePanel');
+  });
+  document.getElementById('closeFilterModal')?.addEventListener('click', closeFilterModal);
+  document.getElementById('filterModal')?.addEventListener('click', e => { if(e.target===e.currentTarget) closeFilterModal(); });
+
+  document.getElementById('applyFiltersBtn')?.addEventListener('click', () => {
+    readFilterPanel(); currentPage=1; applyFiltersAndRender(); closeFilterModal();
+  });
+document.getElementById('clearAllFiltersBtn')?.addEventListener('click', () => {
+    filterDelegators=[]; filterDelegatees=[]; filterPriorities=[]; filterDepts=[];
+    
+    // Reset Status to default (Everything except Completed)
+    filterStatuses = ['Pending', 'Approval Waiting', 'Overdue'];
+    
+    // Clear Date Inputs
+    document.getElementById('filterFromDate').value = '';
+    document.getElementById('filterToDate').value = '';
+    
+    
+    document.querySelectorAll('.delegator-cb,.delegatee-cb,.priority-cb,.dept-cb').forEach(cb=>cb.checked=false);
+    document.querySelectorAll('.status-cb').forEach(cb => {
+        cb.checked = filterStatuses.includes(cb.value);
+    });
+
+    currentPage=1; applyFiltersAndRender(); closeFilterModal();
+  });
+
+  document.getElementById('openAddModalBtn')?.addEventListener('click', openAddModal);
+  document.getElementById('closeAddModal')?.addEventListener('click', closeAddModal);
+  document.getElementById('cancelAddBtn')?.addEventListener('click', closeAddModal);
+  document.getElementById('addModal')?.addEventListener('click', e => { if(e.target===e.currentTarget) closeAddModal(); });
+  document.getElementById('submitAddBtn')?.addEventListener('click', submitForm);
+  document.getElementById('exportBtn')?.addEventListener('click', exportToCSV);
+
+  // Handle Priority Button Group selection
+  document.querySelectorAll('#priorityGroup .priority-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const val = btn.getAttribute('data-val');
+      setPriorityValue(val);
+    });
+  });
+
+document.getElementById('quickUpcoming')?.addEventListener('click', function() {
+    currentQuickDate = 'upcoming';
+    this.classList.add('bg-white', 'text-violet-600', 'shadow');
+    this.classList.remove('text-gray-500');
+    document.getElementById('quickAllDates').classList.remove('bg-white', 'text-violet-600', 'shadow');
+    document.getElementById('quickAllDates').classList.add('text-gray-500');
+    currentPage = 1; applyFiltersAndRender();
+  });
+
+  document.getElementById('quickAllDates')?.addEventListener('click', function() {
+    currentQuickDate = 'all';
+    this.classList.add('bg-white', 'text-violet-600', 'shadow');
+    this.classList.remove('text-gray-500');
+    document.getElementById('quickUpcoming').classList.remove('bg-white', 'text-violet-600', 'shadow');
+    document.getElementById('quickUpcoming').classList.add('text-gray-500');
+    currentPage = 1; applyFiltersAndRender();
+  });
+  function setPriorityValue(val) {
+    document.getElementById('f_priority').value = val;
+    document.querySelectorAll('#priorityGroup .priority-btn').forEach(b => {
+      const bVal = b.getAttribute('data-val');
+      b.className = `priority-btn flex-1 py-2 text-xs font-semibold rounded-xl border transition-all duration-200 border-gray-200 text-gray-500 active:scale-95`;
+      if (bVal === 'High') b.classList.add('hover:bg-red-50', 'hover:text-red-600', 'hover:border-red-200');
+      else if (bVal === 'Medium') b.classList.add('hover:bg-amber-50', 'hover:text-amber-600', 'hover:border-amber-200');
+      else if (bVal === 'Low') b.classList.add('hover:bg-green-50', 'hover:text-green-600', 'hover:border-green-200');
+      
+      if (bVal === val) {
+        if (val === 'High') {
+          b.className = `priority-btn flex-1 py-2 text-xs font-semibold rounded-xl border transition-all duration-200 bg-red-500 text-white border-red-500 shadow-sm shadow-red-200 active:scale-95`;
+        } else if (val === 'Medium') {
+          b.className = `priority-btn flex-1 py-2 text-xs font-semibold rounded-xl border transition-all duration-200 bg-amber-500 text-white border-amber-500 shadow-sm shadow-amber-200 active:scale-95`;
+        } else if (val === 'Low') {
+          b.className = `priority-btn flex-1 py-2 text-xs font-semibold rounded-xl border transition-all duration-200 bg-green-500 text-white border-green-500 shadow-sm shadow-green-200 active:scale-95`;
+        }
+      }
+    });
+  }
+
+  // Handle Proof Required Button selection
+  document.querySelectorAll('#proofGroup .proof-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const val = btn.getAttribute('data-val');
+      setProofValue(val);
+    });
+  });
+
+  function setProofValue(val) {
+    document.getElementById('f_proofRequired').value = val || 'No';
+    document.querySelectorAll('#proofGroup .proof-btn').forEach(b => {
+      const bVal = b.getAttribute('data-val');
+      b.className = `proof-btn flex-1 py-2 text-xs font-semibold rounded-xl border transition-all duration-200 border-gray-200 text-gray-500 active:scale-95`;
+      if (bVal === 'Yes') b.classList.add('hover:bg-violet-50', 'hover:text-violet-600', 'hover:border-violet-200');
+      else b.classList.add('hover:bg-gray-50', 'hover:text-gray-600', 'hover:border-gray-200');
+      
+      if (bVal === (val || 'No')) {
+        if (val === 'Yes') {
+          b.className = `proof-btn flex-1 py-2 text-xs font-semibold rounded-xl border transition-all duration-200 bg-violet-600 text-white border-violet-600 shadow-sm shadow-violet-200 active:scale-95`;
+        } else {
+          b.className = `proof-btn flex-1 py-2 text-xs font-semibold rounded-xl border transition-all duration-200 bg-gray-500 text-white border-gray-500 shadow-sm shadow-gray-200 active:scale-95`;
+        }
+      }
+    });
+  }
+
+  // Handle Approval Required Button selection
+  document.querySelectorAll('#approvalGroup .approval-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const val = btn.getAttribute('data-val');
+      setApprovalValue(val);
+    });
+  });
+
+  function setApprovalValue(val) {
+    document.getElementById('f_approvalRequired').value = val || 'No';
+    document.querySelectorAll('#approvalGroup .approval-btn').forEach(b => {
+      const bVal = b.getAttribute('data-val');
+      b.className = `approval-btn flex-1 py-2 text-xs font-semibold rounded-xl border transition-all duration-200 border-gray-200 text-gray-500 active:scale-95`;
+      if (bVal === 'Yes') b.classList.add('hover:bg-violet-50', 'hover:text-violet-600', 'hover:border-violet-200');
+      else b.classList.add('hover:bg-gray-50', 'hover:text-gray-600', 'hover:border-gray-200');
+      
+      if (bVal === (val || 'No')) {
+        if (val === 'Yes') {
+          b.className = `approval-btn flex-1 py-2 text-xs font-semibold rounded-xl border transition-all duration-200 bg-violet-600 text-white border-violet-600 shadow-sm shadow-violet-200 active:scale-95`;
+        } else {
+          b.className = `approval-btn flex-1 py-2 text-xs font-semibold rounded-xl border transition-all duration-200 bg-gray-500 text-white border-gray-500 shadow-sm shadow-gray-200 active:scale-95`;
+        }
+      }
+    });
+  }
+
+  // Handle Document Required Button selection
+  document.querySelectorAll('#docGroup .doc-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const val = btn.getAttribute('data-val');
+      setDocValue(val);
+    });
+  });
+
+  function setDocValue(val) {
+    document.getElementById('f_docRequired').value = '';
+    document.querySelectorAll('#docGroup .doc-btn').forEach(b => {
+      const bVal = b.getAttribute('data-val');
+      b.className = `doc-btn flex-1 py-2 text-xs font-semibold rounded-xl border transition-all duration-200 border-gray-200 text-gray-500 active:scale-95`;
+      if (bVal === 'Yes') b.classList.add('hover:bg-teal-50', 'hover:text-teal-600', 'hover:border-teal-200');
+      else b.classList.add('hover:bg-gray-50', 'hover:text-gray-600', 'hover:border-gray-200');
+      
+      if (bVal === '') {
+        b.className = `doc-btn flex-1 py-2 text-xs font-semibold rounded-xl border transition-all duration-200 bg-gray-500 text-white border-gray-500 shadow-sm shadow-gray-200 active:scale-95`;
+      }
+    });
+  }
+
+  // Handle Score Star selection and hover effects
+  document.querySelectorAll('#starRatingGroup .star-item').forEach(btn => {
+    btn.addEventListener('mouseenter', () => {
+      const hoverIndex = parseInt(btn.getAttribute('data-star'));
+      document.querySelectorAll('#starRatingGroup .star-item').forEach(star => {
+        const idx = parseInt(star.getAttribute('data-star'));
+        if (idx <= hoverIndex) {
+          star.className = 'fas fa-star text-amber-400 hover:scale-110 transition duration-150 star-item';
+        } else {
+          star.className = 'far fa-star text-gray-300 hover:scale-110 transition duration-150 star-item';
+        }
+      });
+    });
+
+    btn.addEventListener('click', () => {
+      const starCount = parseInt(btn.getAttribute('data-star'));
+      const scoreMap = { 1: 5, 2: 10, 3: 15, 4: 20 };
+      setScoreValue(scoreMap[starCount] || 0);
+    });
+  });
+
+  document.getElementById('starRatingGroup')?.addEventListener('mouseleave', () => {
+    const currentVal = document.getElementById('f_score').value;
+    setScoreValue(currentVal);
+  });
+
+// Show Sub-Monitoring only when Delegator or Boss is adding a task
+
+function initSubMonitoringVisibility() {
+  const block = document.getElementById('subMonitoringBlock');
+  if (!block) return;
+  
+  // Isse box hamesha dikhega aur logic sahi rahega
+  block.style.setProperty('display', 'block', 'important');
+  
+  // Dropdown tabhi dikhega agar "Enable" (Yes) select kiya ho
+  const isEnabled = document.getElementById('f_subMonitoring').value === 'Yes';
+  document.getElementById('subMonitorDropdownContainer').style.display = isEnabled ? 'block' : 'none';
+}
+// Function to show/hide the dropdown and handle button styles
+function setSubMonitorValue(val, presetUser) {
+  document.getElementById('f_subMonitoring').value = val || 'No';
+  const dropdownContainer = document.getElementById('subMonitorDropdownContainer');
+
+  document.querySelectorAll('#subMonitorGroup .submonitor-btn').forEach(b => {
+    const bVal = b.getAttribute('data-val');
+    if (bVal === (val || 'No')) {
+      b.className = `submonitor-btn flex-1 py-2 px-4 text-xs font-semibold rounded-xl border transition-all duration-200 ${val === 'Yes' ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm' : 'bg-gray-500 text-white border-gray-500'} active:scale-95`;
+    } else {
+      b.className = `submonitor-btn flex-1 py-2 px-4 text-xs font-semibold rounded-xl border transition-all duration-200 border-gray-200 text-gray-500 hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200 active:scale-95`;
+    }
+  });
+
+  if (val === 'Yes') {
+    dropdownContainer.style.display = 'block';
+    // Pass the preset value through so it survives even if allNames isn't loaded yet
+    populateSubMonitorDropdown(presetUser !== undefined ? presetUser : document.getElementById('f_subMonitoringUser').value);
+  } else {
+    dropdownContainer.style.display = 'none';
+    document.getElementById('f_subMonitoringUser').value = '';
+  }
+}
+
+let pendingSubMonitorValue = ''; // remembers value to apply once names load
+
+function populateSubMonitorDropdown(selectedValue) {
+  const sel = document.getElementById('f_subMonitoringUser');
+  if (!sel) return;
+
+  const current = selectedValue !== undefined && selectedValue !== '' ? selectedValue : (pendingSubMonitorValue || sel.value);
+  pendingSubMonitorValue = current; // remember it regardless of whether names are ready
+
+  sel.innerHTML = '<option value="">Select person...</option>' +
+    [...allNames].sort().map(n => `<option value="${esc(n)}" ${n === current ? 'selected' : ''}>${esc(n)}</option>`).join('');
+
+  // If allNames was empty when this ran, the option won't exist yet — but value stays remembered
+  if (current && [...sel.options].some(o => o.value === current)) {
+    sel.value = current;
+  }
+}
+
+
+  function setScoreValue(scoreVal) {
+    const val = scoreVal ? Number(scoreVal) : 0;
+    document.getElementById('f_score').value = val || '';
+    
+    let starsActive = 0;
+    if (val >= 20) starsActive = 4;
+    else if (val >= 15) starsActive = 3;
+    else if (val >= 10) starsActive = 2;
+    else if (val >= 5) starsActive = 1;
+
+    document.querySelectorAll('#starRatingGroup .star-item').forEach(star => {
+      const idx = parseInt(star.getAttribute('data-star'));
+      if (idx <= starsActive) {
+        star.className = 'fas fa-star text-amber-400 hover:scale-110 transition duration-150 star-item';
+      } else {
+        star.className = 'far fa-star text-gray-300 hover:scale-110 transition duration-150 star-item';
+      }
+    });
+
+    const lbl = document.getElementById('starScoreLabel');
+    if (lbl) lbl.textContent = val > 0 ? `${val} pts` : 'No score';
+  }
+
+  document.getElementById('pgSize')?.addEventListener('change', e => { pageSize=parseInt(e.target.value); currentPage=1; renderTable(filteredCache); });
+  document.getElementById('globalSearch')?.addEventListener('input', function() {
+    searchQuery = this.value.trim(); currentPage=1; applyFiltersAndRender();
+  });
+ document.getElementById('f_delegator')?.addEventListener('change', updateDelegateeOptions);
+
+  // Bulk Delete Selected tasks
+  document.getElementById('bulkDeleteBtn')?.addEventListener('click', () => {
+    const checkedCbs = document.querySelectorAll('.task-row-cb:checked');
+    const ids = Array.from(checkedCbs).map(cb => cb.getAttribute('data-task-id'));
+    if (ids.length === 0) return;
+
+    Swal.fire({
+      title: `Delete ${ids.length} tasks?`,
+      text: "This action cannot be undone.",
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#ef4444',
+      confirmButtonText: 'Yes, delete all'
+    }).then(res => {
+      if (res.isConfirmed) {
+        google.script.run
+          .withSuccessHandler(r => {
+            if (r.success) {
+              showToast(r.message);
+              loadDelegationData();
+            } else {
+              showToast(r.message, 'error');
+            }
+          })
+          .withFailureHandler(err => {
+            showToast(err.message, 'error');
+          })
+          .deleteDelegationEntry(ids);
+      }
+    });
+  });
+
+  // Helper to check if the current user has permission to remark / update status
+  // Helper to check if the current user has permission to remark / update status
+  function isUserAuthorizedToRemark(row) {
+    // ADDED PC ROLE: Treats PC exactly like Admin
+    if (currentRole === 'Admin' || currentRole === 'PC') return true;
+    if (String(row['Delegator']).trim().toLowerCase() === String(currentUser).trim().toLowerCase()) return true;
+    return false;
+  }
+
+  // Bulk Remark Update Modal Handlers
+  let selectedTaskIdsForRemark = [];
+  
+  document.getElementById('bulkRemarkBtn')?.addEventListener('click', () => {
+    const checkedCbs = document.querySelectorAll('.task-row-cb:checked');
+    const rawIds = Array.from(checkedCbs).map(cb => cb.getAttribute('data-task-id'));
+    if (rawIds.length === 0) return;
+
+    // Filter to tasks the user is authorized to remark
+    const authorizedIds = [];
+    const unauthorizedTasks = [];
+    rawIds.forEach(tid => {
+      const row = delegationData.find(r => String(r['Task Id']) === String(tid));
+      if (row) {
+        if (isUserAuthorizedToRemark(row)) {
+          authorizedIds.push(tid);
+        } else {
+          unauthorizedTasks.push(`${row['Task Id']} (${row['Task Title']})`);
+        }
+      }
+    });
+
+    if (authorizedIds.length === 0) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Permission Denied',
+        text: 'Only the Boss or the Task Delegator can add remarks or update status for these tasks.',
+        confirmButtonColor: '#6366f1'
+      });
+      return;
+    }
+
+    if (unauthorizedTasks.length > 0) {
+      Swal.fire({
+        icon: 'info',
+        title: 'Permission Notice',
+        text: `Some selected tasks were skipped because you are not their Delegator: ${unauthorizedTasks.join(', ')}. Only tasks you delegated will be updated.`,
+        confirmButtonText: 'Continue',
+        confirmButtonColor: '#6366f1',
+        showCancelButton: true
+      }).then(res => {
+        if (res.isConfirmed) {
+          selectedTaskIdsForRemark = authorizedIds;
+          renderBulkRemarkTasks();
+          document.getElementById('remarkModal').classList.remove('hidden');
+          setTimeout(() => {
+            document.getElementById('remarkSlidePanel').style.transform = 'translateX(0)';
+          }, 10);
+        }
+      });
+    } else {
+      selectedTaskIdsForRemark = authorizedIds;
+      renderBulkRemarkTasks();
+      document.getElementById('remarkModal').classList.remove('hidden');
+      setTimeout(() => {
+        document.getElementById('remarkSlidePanel').style.transform = 'translateX(0)';
+      }, 10);
+    }
+  });
+
+  function openSingleTaskRemark(taskId) {
+    const row = delegationData.find(r => String(r['Task Id']) === String(taskId));
+    if (!row) return;
+    
+    if (!isUserAuthorizedToRemark(row)) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Permission Denied',
+        text: `Only the Boss or the Task Delegator (${row['Delegator']}) can add remarks or update status for this task.`,
+        confirmButtonColor: '#6366f1'
+      });
+      return;
+    }
+
+    selectedTaskIdsForRemark = [taskId];
+    renderBulkRemarkTasks();
+    document.getElementById('remarkModal').classList.remove('hidden');
+    setTimeout(() => {
+      document.getElementById('remarkSlidePanel').style.transform = 'translateX(0)';
+    }, 10);
+  }
+
+  function renderBulkRemarkTasks() {
+    const container = document.getElementById('bulkRemarkTasksList');
+    if (!container) return;
+    container.innerHTML = '';
+
+    // Show a beautiful header count info card at the top
+    const infoCard = document.createElement('div');
+    infoCard.className = 'bg-violet-50 text-violet-800 text-xs rounded-xl p-3 border border-violet-100 font-medium mb-2';
+    infoCard.innerHTML = `Updating status and adding remarks for <span class="font-bold">${selectedTaskIdsForRemark.length}</span> selected task(s).`;
+    container.appendChild(infoCard);
+
+    selectedTaskIdsForRemark.forEach(tid => {
+      const row = delegationData.find(r => String(r['Task Id']) === String(tid));
+      if (!row) return;
+
+      const card = document.createElement('div');
+      card.className = 'bg-gray-50 border border-gray-100 rounded-2xl p-4 space-y-3.5 relative task-bulk-row';
+      card.setAttribute('data-task-id', tid);
+      card.innerHTML = `
+        <!-- Task info header -->
+        <div class="flex items-start justify-between">
+          <div>
+            <span class="font-mono text-[10px] font-bold bg-violet-100 text-violet-700 px-2 py-0.5 rounded-lg">${esc(row['Task Id'])}</span>
+            <h4 class="text-xs font-semibold text-gray-800 mt-1.5 truncate max-w-[200px]" title="${esc(row['Task Title'])}">${esc(row['Task Title'])}</h4>
+          </div>
+          <span class="text-[9px] text-gray-400 font-medium">${esc(row['Timestamp'])}</span>
+        </div>
+        <p class="text-xs text-gray-500 line-clamp-2 leading-relaxed bg-white border border-gray-50 rounded-lg p-2">${esc(row['Task'])}</p>
+        
+        <div class="grid grid-cols-2 gap-3">
+          <!-- Individual Status Dropdown -->
+          <div>
+            <label class="block text-[9px] font-bold text-gray-500 mb-1">Status</label>
+            <select class="bulk-row-status w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs focus:ring-1 focus:ring-violet-300 outline-none">
+              <option value="">-- Keep Current --</option>
+              <option value="Pending" ${row['Status']==='Pending'?'selected':''}>Pending</option>
+              <option value="Hold" ${row['Status']==='Hold'?'selected':''}>Hold</option>
+              <option value="Completed" ${row['Status']==='Completed'?'selected':''}>Completed</option>
+            </select>
+          </div>
+          
+          <!-- Individual Remark Input -->
+          <div>
+            <label class="block text-[9px] font-bold text-gray-500 mb-1">Remark *</label>
+            <input type="text" class="bulk-row-remark w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs focus:ring-1 focus:ring-violet-300 outline-none" placeholder="Type remark update...">
+          </div>
+        </div>
+      `;
+      container.appendChild(card);
+    });
+  }
+
+  function closeRemarkModal() {
+    const side = document.getElementById('remarkSlidePanel');
+    if (side) side.style.transform = 'translateX(100%)';
+    setTimeout(() => {
+      document.getElementById('remarkModal')?.classList.add('hidden');
+      const container = document.getElementById('bulkRemarkTasksList');
+      if (container) container.innerHTML = '';
+    }, 200);
+  }
+
+  function submitBulkRemark() {
+    const rows = document.querySelectorAll('.task-bulk-row');
+    const updates = [];
+    let hasEmptyRemark = false;
+
+    rows.forEach(r => {
+      const taskId = r.getAttribute('data-task-id');
+      const status = r.querySelector('.bulk-row-status').value;
+      const remarkInput = r.querySelector('.bulk-row-remark');
+      const remark = remarkInput.value.trim();
+
+      if (!remark) {
+        hasEmptyRemark = true;
+        remarkInput.classList.add('border-red-500', 'focus:ring-red-200', 'bg-red-50/50');
+      } else {
+        remarkInput.classList.remove('border-red-500', 'focus:ring-red-200', 'bg-red-50/50');
+      }
+
+      updates.push({ taskId, status, remark, user: currentUser });
+    });
+
+    if (hasEmptyRemark) {
+      showToast('Please enter a remark for all listed tasks','warning'); return;
+    }
+    
+    const btn = document.getElementById('submitRemarkBtn');
+    btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-pulse mr-2"></i> Submitting…';
+
+    google.script.run
+      .withSuccessHandler(res => {
+        btn.disabled = false; btn.innerHTML = 'Submit Updates';
+        if (res.success) {
+          showToast(res.message);
+          closeRemarkModal();
+          loadDelegationData();
+        } else {
+          showToast(res.message, 'error');
+        }
+      })
+      .withFailureHandler(err => {
+        btn.disabled = false; btn.innerHTML = 'Submit Updates';
+        showToast(err.message, 'error');
+      })
+      .updateBulkStatusAndRemark(updates);
+  }
+
+  // Expose these functions to the global window scope for sandboxed Apps Script environments
+  window.closeRemarkModal = closeRemarkModal;
+  window.submitBulkRemark = submitBulkRemark;
+
+  function viewRemarkHistory(taskId) {
+    const row = delegationData.find(r => String(r['Task Id']) === String(taskId));
+    if (!row) return;
+
+    let history = [];
+    const rawRemark = row['Remark'];
+    if (rawRemark) {
+      try {
+        history = JSON.parse(rawRemark);
+        if (!Array.isArray(history)) {
+          history = [{ time: 'Original', remark: String(rawRemark), status: '' }];
+        }
+      } catch (e) {
+        history = [{ time: 'Original', remark: String(rawRemark), status: '' }];
+      }
+    }
+
+    if (history.length === 0) {
+      Swal.fire({
+        title: 'No History',
+        text: 'No remarks have been recorded for this task yet.',
+        icon: 'info',
+        confirmButtonColor: '#6366f1'
+      });
+      return;
+    }
+
+    let timelineHTML = `<div class="text-left space-y-4 max-h-[350px] overflow-y-auto pr-1">`;
+    history.forEach((h, index) => {
+      const isLast = index === history.length - 1;
+      const statusPill = h.status && h.status !== 'No Change' 
+        ? `<span class="bg-violet-100 text-violet-800 text-[10px] font-bold px-1.5 py-0.5 rounded-full ml-2">${h.status}</span>` 
+        : '';
+      timelineHTML += `
+        <div class="flex gap-3">
+          <div class="flex flex-col items-center shrink-0">
+            <div class="w-2.5 h-2.5 rounded-full ${isLast ? 'bg-violet-600 ring-4 ring-violet-100' : 'bg-gray-300'}"></div>
+            ${!isLast ? '<div class="w-0.5 flex-1 bg-gray-200 my-1"></div>' : ''}
+          </div>
+          <div class="bg-gray-50 border border-gray-100 rounded-xl p-3 flex-1 text-xs text-gray-700">
+            <div class="flex justify-between items-center mb-1.5 gap-2">
+              <span class="font-mono text-gray-400 text-[10px]">${h.time || ''}</span>
+              <div class="flex items-center gap-1.5 shrink-0">
+                ${h.user ? `<span class="bg-gray-200 text-gray-600 text-[9px] font-medium px-1.5 py-0.5 rounded"><i class="fas fa-user text-[8px] mr-1 text-gray-400"></i>${esc(h.user)}</span>` : ''}
+                ${statusPill}
+              </div>
+            </div>
+            <div class="font-semibold text-gray-800 break-words leading-relaxed">${esc(h.remark)}</div>
+          </div>
+        </div>`;
+    });
+    timelineHTML += `</div>`;
+
+    Swal.fire({
+      title: `<span class="text-lg font-bold text-gray-800 flex items-center gap-2"><i class="fas fa-history text-violet-500"></i> Remark Timeline</span>`,
+      html: timelineHTML,
+      showConfirmButton: true,
+      confirmButtonText: 'Close',
+      confirmButtonColor: '#6366f1',
+      customClass: {
+        popup: 'rounded-2xl shadow-xl'
+      }
+    });
+  }
+
+  // Filter delegatee options when delegator is changed
+  ['input', 'change'].forEach(evtName => {
+    document.getElementById('f_delegator')?.addEventListener(evtName, () => {
+      updateDelegateeOptions();
+    });
+  });
+
+  // Auto-fill department when delegatee is selected
+ // Auto-fill department when delegatee is selected
+  ['input', 'change'].forEach(evtName => {
+    document.getElementById('f_delegatee')?.addEventListener(evtName, function() {
+      const selectedDelegatee = this.value.trim();
+      if (!selectedDelegatee || usersList.length === 0) return;
+      
+      // Match the selected delegatee name with our loaded users list
+      const matchedUser = usersList.find(u => u.name.toLowerCase() === selectedDelegatee.toLowerCase());
+      
+      if (matchedUser && matchedUser.department) {
+        const deptDropdown = document.getElementById('f_department');
+        if (deptDropdown) {
+          // Check if the department is already in the dropdown options
+          const optionExists = [...deptDropdown.options].some(opt => opt.value === matchedUser.department);
+          
+          // If it's a new department not currently in the dropdown, add it dynamically
+          if (!optionExists) {
+            const newOpt = document.createElement('option');
+            newOpt.value = matchedUser.department;
+            newOpt.textContent = matchedUser.department;
+            deptDropdown.appendChild(newOpt);
+          }
+          
+          // Auto-select the department in the dropdown
+          deptDropdown.value = matchedUser.department;
+        }
+      }
+    });
+  });
+
+// Load Departments from Doer List
+  function loadDepartments() {
+    google.script.run
+      .withSuccessHandler(depts => {
+        const select = document.getElementById('f_department');
+        if (!select) return;
+        
+        // Save current selection if we are editing
+        const currentVal = select.value;
+        
+        // Populate dropdown
+        select.innerHTML = '<option value="">Select department...</option>' + 
+          (depts || []).map(d => `<option value="${esc(d)}">${esc(d)}</option>`).join('');
+          
+        // Restore value if it existed
+        if (currentVal) select.value = currentVal;
+      })
+      .withFailureHandler(err => console.error("Failed to load departments:", err))
+      .getDepartments();
+  }
+  // ── Init ───────────────────────────────────────────────────────────────
+  initRoleSwitcher();
+  loadUsers();
+  loadDelegationData();
+  loadChartData();
+    loadDepartments(); 
+
+     document.querySelectorAll('#subMonitorGroup .submonitor-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const val = btn.getAttribute('data-val');
+      setSubMonitorValue(val);
+    });
+  });
+
+   function getLocalISODate(d) {
+    if (!d || isNaN(d.getTime())) return '';
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+ 
+  const delMaxTodayStr = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}`;
+  const delFromInput = document.getElementById('filterFromDate');
+  const delToInput = document.getElementById('filterToDate');
+  if (delFromInput) delFromInput.max = delMaxTodayStr;
+  if (delToInput) delToInput.max = delMaxTodayStr;
+</script>
+  <!-- Floating Overlay Container (Fixed Bottom Center) -->
+  <div id="bulkDeleteBtnContainer" class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 transition-all duration-300 transform translate-y-20 opacity-0 pointer-events-none flex gap-3 items-center">
+    <button id="bulkDeleteBtn"
+      class="bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 text-white font-bold px-6 py-3 rounded-full shadow-2xl flex items-center gap-2 text-sm transition-all duration-200 active:scale-95 border border-red-400">
+      <i class="fas fa-trash-alt text-white"></i>
+      <span>Delete Selected (<span class="selected-count">0</span>)</span>
+    </button>
+    <button id="bulkRemarkBtn"
+      class="bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white font-bold px-6 py-3 rounded-full shadow-2xl flex items-center gap-2 text-sm transition-all duration-200 active:scale-95 border border-violet-500">
+      <i class="fas fa-comment-dots text-white"></i>
+      <span>Update Status/Remark (<span class="selected-count">0</span>)</span>
+    </button>
+    <button onclick="unselectAllRows()" title="Unselect All"
+      class="bg-white hover:bg-gray-100 text-gray-500 hover:text-gray-800 w-11 h-11 rounded-full shadow-2xl flex items-center justify-center transition-all duration-200 active:scale-95 border border-gray-200 pointer-events-auto">
+      <i class="fas fa-times text-lg"></i>
+    </button>
+  </div>
+
+  <!-- Status & Remark Slide Panel -->
+  <div id="remarkModal" class="fixed inset-0 z-50 hidden bg-slate-900/60 backdrop-blur-sm transition-opacity duration-300">
+    <div class="fixed inset-y-0 right-0 w-full max-w-md bg-white shadow-2xl flex flex-col transform translate-x-full transition-transform duration-300 ease-out" id="remarkSlidePanel">
+      
+      <!-- Header -->
+      <div class="px-6 py-5 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-gray-50 to-slate-50">
+        <h3 class="text-base font-bold text-gray-800 flex items-center gap-2" id="remarkModalTitle">
+          <i class="fas fa-comment-dots text-violet-500"></i> Update Status & Remarks
+        </h3>
+        <button onclick="closeRemarkModal()" class="w-8 h-8 flex items-center justify-center rounded-xl hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+
+      <!-- Scrollable Task Updates List -->
+      <div class="flex-1 overflow-y-auto p-6 space-y-5" id="bulkRemarkTasksList">
+        <!-- Dynamically rendered in JS -->
+      </div>
+
+      <!-- Footer -->
+      <div class="px-6 py-4 border-t border-gray-100 flex gap-3">
+        <button onclick="closeRemarkModal()" class="flex-1 py-2.5 text-xs font-bold rounded-xl border border-gray-200 text-gray-500 hover:bg-gray-50 active:scale-95 transition">Cancel</button>
+        <button id="submitRemarkBtn" onclick="submitBulkRemark()" class="flex-1 py-2.5 text-xs font-bold rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white shadow-md active:scale-95 transition">Submit Updates</button>
+      </div>
+
+    </div>
+  </div>
+</body>
+</html>

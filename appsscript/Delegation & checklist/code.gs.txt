@@ -1,0 +1,1691 @@
+
+function doGet() {
+  return HtmlService.createHtmlOutputFromFile('Index')
+    .setTitle('ERP Suite')
+    .addMetaTag('viewport', 'width=device-width, initial-scale=1');
+}
+
+function getHtmlContent(pageName) {
+  if (pageName === 'delegation') {
+    return HtmlService.createHtmlOutputFromFile('Delegation').getContent();
+  } else if (pageName === 'checklist') {
+    return HtmlService.createHtmlOutputFromFile('Checklist').getContent();
+  } else if (pageName === 'tasks') {
+    return HtmlService.createHtmlOutputFromFile('Tasks').getContent();
+  } else {
+    return '<p>Page not found</p>';
+  }
+}
+
+function authenticateUser(username, password) {
+  try {
+    const sheet = getDoerListSheet();
+    if (!sheet) {
+      return { success: false, message: 'Configuration error: "Doer List" sheet not found.' };
+    }
+    
+    const data = sheet.getDataRange().getValues();
+    // Assume columns: A=username, B=password, C=role
+    for (let i = 0; i < data.length; i++) {
+      const rowUser = String(data[i][0] || '').trim();
+      const rowPass = String(data[i][1] || '').trim();
+      const rowRole = String(data[i][2] || 'User').trim(); // default role 'User' if empty
+      if (rowUser === username && rowPass === password) {
+        return { success: true, username: username, role: rowRole };
+      }
+    }
+    return { success: false, message: 'Invalid username or password.' };
+  } catch (err) {
+    console.error(err);
+    return { success: false, message: 'Authentication error: ' + err.toString() };
+  }
+}
+
+
+function getUsernames() {
+  const sheet = getDoerListSheet();
+  if (!sheet) return [];
+  const data = sheet.getDataRange().getValues();
+  const usernames = [];
+  for (let i = 0; i < data.length; i++) {
+    const user = String(data[i][0] || '').trim();
+    if (user !== '') usernames.push(user);
+  }
+  return usernames;
+}
+
+
+function getDoerListSheet() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  if (!ss) {
+    throw new Error('No active spreadsheet found. Please create or open a spreadsheet.');
+  }
+  const sheet = ss.getSheetByName('Doer List');
+  if (!sheet) {
+    // Fallback: create it with sample data if needed (optional)
+    // But we just return null for clarity.
+    return null;
+  }
+  return sheet;
+}
+
+// Looks up a Doer's email by their Name (Column A) from the Doer List sheet (Column D)
+function getEmailByName(name) {
+  const sheet = getDoerListSheet();
+  if (!sheet || !name) return '';
+  const data = sheet.getDataRange().getValues();
+  const target = String(name).trim().toLowerCase();
+  for (let i = 1; i < data.length; i++) {
+    const rowName = String(data[i][0] || '').trim().toLowerCase();
+    if (rowName === target) {
+      return String(data[i][3] || '').trim(); // Column D = Email
+    }
+  }
+  return '';
+}
+function getChecklistData() {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    if (!ss) { Logger.log('[getChecklistData] ❌ No active spreadsheet found'); return []; }
+
+    const sheet = ss.getSheetByName('Checklist');
+    if (!sheet) { Logger.log('[getChecklistData] ❌ Sheet "Checklist" not found'); return []; }
+
+    const data = sheet.getDataRange().getValues();
+    Logger.log('[getChecklistData] 📄 Total rows (incl. header): %s', data.length);
+
+    if (data.length < 2) { Logger.log('[getChecklistData] ⚠️ No data rows — only header or empty sheet'); return []; }
+
+    const headers = data[0];
+    Logger.log('[getChecklistData] 🏷️ Headers (%s): %s', headers.length, JSON.stringify(headers));
+
+    // Columns: dd mmm yy HH:mm:ss  →  A=0 (Created At), K=10 (Actual), O=14 (Verified Timestamp)
+    const DATE_TIME_COLS = new Set([0, 10, 14]);
+    // Columns: dd mmm yy  →  H=7 (Due Date)
+    const DATE_ONLY_COLS = new Set([7]);
+
+    Logger.log('[getChecklistData] 📅 DateTime columns (0-based): %s',
+      [...DATE_TIME_COLS].map(i => `${i} (${headers[i] || '?'})`).join(', '));
+    Logger.log('[getChecklistData] 📅 DateOnly columns (0-based): %s',
+      [...DATE_ONLY_COLS].map(i => `${i} (${headers[i] || '?'})`).join(', '));
+
+    function formatDateTime(val) {
+      if (!val) return '';
+      const d = new Date(val);
+      if (isNaN(d)) return val;
+      const day = String(d.getDate()).padStart(2, '0');
+      const mon = d.toLocaleString('en-IN', { month: 'short' });
+      const yr  = String(d.getFullYear()).slice(-2);
+      const hh  = String(d.getHours()).padStart(2, '0');
+      const mm  = String(d.getMinutes()).padStart(2, '0');
+      const ss  = String(d.getSeconds()).padStart(2, '0');
+      return `${day} ${mon} ${yr} ${hh}:${mm}:${ss}`;
+    }
+
+    function formatDateOnly(val) {
+      if (!val) return '';
+      const d = new Date(val);
+      if (isNaN(d)) return val;
+      const day = String(d.getDate()).padStart(2, '0');
+      const mon = d.toLocaleString('en-IN', { month: 'short' });
+      const yr  = String(d.getFullYear()).slice(-2);
+      return `${day} ${mon} ${yr}`;
+    }
+
+    const rows = [];
+    let skipped = 0;
+
+    for (let i = 1; i < data.length; i++) {
+      const row = {};
+      let isEmpty = true;
+
+      // --- START OF UPDATED BLOCK (SAFE DATE HANDLING) ---
+      headers.forEach((h, idx) => {
+        const raw = data[i][idx];
+        let formatted = raw;
+        
+        // Format known date columns
+        if (DATE_TIME_COLS.has(idx)) {
+          formatted = formatDateTime(raw);
+        } else if (DATE_ONLY_COLS.has(idx)) {
+          formatted = formatDateOnly(raw);
+        } 
+        // CATCH-ALL SAFEGUARD: If it's a date but not in the lists above (like Last Reminder Sent)
+        else if (raw instanceof Date) {
+          formatted = isNaN(raw.getTime()) ? '' : formatDateTime(raw);
+        }
+
+        row[h] = formatted;
+        if (raw !== '' && raw !== null && raw !== undefined) isEmpty = false;
+      });
+      // --- END OF UPDATED BLOCK ---
+
+      if (isEmpty) {
+        skipped++;
+        Logger.log('[getChecklistData] ⏭️ Row %s skipped (fully empty)', i + 1);
+        continue;
+      }
+
+      rows.push(row);
+    }
+
+    Logger.log('[getChecklistData] ✅ Rows built: %s | Skipped (empty): %s', rows.length, skipped);
+
+    // Log first 3 rows as a sample
+    const sample = rows.slice(0, 3);
+    sample.forEach((r, idx) => {
+      Logger.log('[getChecklistData] 🔍 Sample row %s: %s', idx + 1, JSON.stringify(r));
+    });
+
+    return rows;
+
+  } catch (e) {
+    Logger.log('[getChecklistData] 💥 Exception: %s\nStack: %s', e.message, e.stack);
+    return [];
+  }
+}
+
+function getLastTaskIdNumber() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName('Checklist');
+  if (!sheet) return 0;
+  const data = sheet.getDataRange().getValues();
+  let maxNum = 0;
+  for (let i = 1; i < data.length; i++) {
+    const taskId = data[i][4]; // Column E = Task ID (0-based: 0 Created,1 Group,2 Email,3 Name,4 Task ID...)
+    if (taskId && typeof taskId === 'string' && taskId.startsWith('Task-')) {
+      const num = parseInt(taskId.split('-')[1], 10);
+      if (!isNaN(num) && num > maxNum) maxNum = num;
+    }
+  }
+  return maxNum;
+}
+
+function bulkInsertChecklist(rows) {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    let sheet = ss.getSheetByName('Checklist');
+    const headers = ['Created At', 'Group ID', 'Email', 'Name', 'Task ID', 'Frequency', 'Task Description', 'Due Date', 'Proof is Required', 'Verified by'];
+    if (!sheet) {
+      sheet = ss.insertSheet('Checklist');
+      sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+      sheet.getRange(1, 1, 1, headers.length).setFontWeight('bold');
+    }
+    
+    let lastNum = getLastTaskIdNumber();
+    const newRows = [];
+    const now = new Date();
+    
+    // Create a tracker to prevent sending 365 emails for daily recurring tasks
+    const emailedUsers = new Set(); 
+    
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i];
+      lastNum++;
+      const taskId = 'Task-' + lastNum;
+      
+      // Keep Group ID consistent for tasks generated in the same batch
+      const groupId = 'GRP-' + now.getTime() + '-' + r.name.replace(/\s+/g, '');
+      
+      const userEmail = r.email || getEmailByName(r.name) || '';
+      
+      newRows.push([
+        now, groupId, userEmail, r.name || '', taskId,
+        r.frequency || '', r.taskDescription || '', r.dueDate || '',
+        r.proofRequired || 'No', r.verifiedBy || ''
+      ]);
+
+      // Create a unique key so we only email this user ONCE per task description
+      const emailKey = userEmail + "::" + r.taskDescription;
+
+      // --- GREEN THEME EMAIL SENDING LOGIC (ONLY SEND ONCE PER TASK BATCH) ---
+      if (userEmail && !emailedUsers.has(emailKey)) {
+        emailedUsers.add(emailKey); // Mark as emailed
+        
+        try {
+          const htmlBody = `
+          <div style="font-family: Arial, Helvetica, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f4f5f7; padding: 24px;">
+            <div style="background: linear-gradient(135deg, #10b981, #059669); border-radius: 16px 16px 0 0; padding: 28px 32px;">
+              <table width="100%"><tr>
+                <td>
+                  <span style="display:inline-block; background:#ffffff; color:#059669; font-weight:bold; font-size:14px; padding:6px 14px; border-radius: 999px;">ERP SUITE</span>
+                  <h1 style="color:#ffffff; font-size:22px; margin:14px 0 4px 0;">New Checklist Task</h1>
+                  <p style="color:#d1fae5; font-size:13px; margin:0;">A new routine task has been assigned to you</p>
+                </td>
+              </tr></table>
+            </div>
+
+            <div style="background:#ffffff; padding:28px 32px; border-radius: 0 0 16px 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+              <p style="font-size:15px; color:#374151; margin:0 0 4px 0;">Hello <strong>${r.name || 'User'}</strong>,</p>
+              <p style="font-size:14px; color:#6b7280; margin:0 0 20px 0;">Please review your new checklist task details below.</p>
+
+              <div style="background:#f9fafb; border:1px solid #e5e7eb; border-radius:12px; padding:18px 20px; margin-bottom:20px;">
+                <table width="100%" style="font-size:14px; color:#374151;" cellpadding="0" cellspacing="0">
+                  <tr>
+                    <td style="padding:6px 0; color:#9ca3af; width:120px;">Task Series ID</td>
+                    <td style="padding:6px 0; font-weight:bold; font-family: monospace; background:#d1fae5; color:#059669; border-radius:6px; padding-left:8px; padding-right:8px; display:inline-block;">${groupId}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding:6px 0; color:#9ca3af; vertical-align:top;">Description</td>
+                    <td style="padding:6px 0; font-weight:600;">${r.taskDescription || '—'}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding:6px 0; color:#9ca3af;">Frequency</td>
+                    <td style="padding:6px 0; color:#4b5563; font-weight:bold;">${r.frequency || 'Once'}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding:6px 0; color:#9ca3af;">Start Date</td>
+                    <td style="padding:6px 0; font-weight:600; color:#dc2626;">${r.dueDate || '—'}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding:6px 0; color:#9ca3af;">Verified By</td>
+                    <td style="padding:6px 0; font-weight:600; color:#4f46e5;">${r.verifiedBy || 'Admin'}</td>
+                  </tr>
+                </table>
+              </div>
+              <p style="font-size:13px; color:#9ca3af; margin:0 0 22px 0;">This task will recur according to the frequency. Please log in to the ERP Suite to update the actual completion status and upload proof.</p>
+              <p style="font-size:12px; color:#c4c4c4; text-align:center; margin-top:28px; border-top:1px solid #f0f0f0; padding-top:14px;">— ERP Suite &nbsp;|&nbsp; Automated Checklist Notification</p>
+            </div>
+          </div>`;
+
+          const plainBody = `Hello ${r.name},\n\nA new Recurring Checklist Task has been assigned to you.\n\nDescription: ${r.taskDescription}\nStart Date: ${r.dueDate}\nFrequency: ${r.frequency}\n\nPlease login to ERP Suite to view details.`;
+
+          MailApp.sendEmail({
+            to: userEmail,
+            subject: `New Recurring Checklist Task Assigned`,
+            body: plainBody,
+            htmlBody: htmlBody
+          });
+        } catch (mailErr) {
+          console.error('Checklist assignment email failed: ' + mailErr.toString());
+        }
+      }
+    }
+    
+    if (newRows.length) {
+      sheet.getRange(sheet.getLastRow() + 1, 1, newRows.length, headers.length).setValues(newRows);
+    }
+    return { success: true, message: `${newRows.length} task(s) generated successfully!`, insertedCount: newRows.length };
+  } catch (err) {
+    console.error(err);
+    return { success: false, message: err.toString() };
+  }
+}
+
+// Updated function to fetch Name, Email, and Department from Doer List
+function getUsersWithEmail() {
+  const sheet = getDoerListSheet();
+  if (!sheet) return [];
+  const data = sheet.getDataRange().getValues();
+  const users = [];
+  
+  // Start from i = 1 to skip the header row
+  for (let i = 1; i < data.length; i++) {
+    const name = String(data[i][0] || '').trim(); // Column A
+    const email = String(data[i][3] || '').trim(); // Column D
+    const dept = String(data[i][5] || '').trim();  // Column F (Department)
+    
+    if (name) {
+      users.push({ name: name, email: email, department: dept });
+    }
+  }
+  return users;
+}
+
+
+
+function deleteChecklistEntryByGroupId(groupId) {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName('Checklist');
+    if (!sheet) throw new Error('Checklist sheet not found.');
+
+    const data = sheet.getDataRange().getValues();
+    let deletedCount = 0;
+
+    // Iterate BOTTOM-UP to avoid row index shifting after deletion
+    for (let i = data.length - 1; i >= 1; i--) {
+      if (data[i][1] === groupId) {
+        sheet.deleteRow(i + 1);
+        deletedCount++;
+      }
+    }
+
+    if (deletedCount > 0) {
+      return { success: true, message: `Deleted ${deletedCount} row(s).` };
+    } else {
+      return { success: false, message: 'Entry not found.' };
+    }
+
+  } catch (err) {
+    return { success: false, message: err.toString() };
+  }
+}
+
+
+function updateChecklistEntryByGroupId(groupId, data) {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName('Checklist');
+    if (!sheet) throw new Error('Checklist sheet not found.');
+    const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    const headerMap = {};
+    headers.forEach((h, idx) => { headerMap[h] = idx; });
+    const values = sheet.getDataRange().getValues();
+    let rowIndex = -1;
+    for (let i = 1; i < values.length; i++) {
+      if (values[i][1] === groupId) {
+        rowIndex = i + 1;
+        break;
+      }
+    }
+    if (rowIndex === -1) return { success: false, message: 'Entry not found.' };
+    const rowData = sheet.getRange(rowIndex, 1, 1, headers.length).getValues()[0];
+    // Update fields
+    if (data.name !== undefined) rowData[headerMap['Name']] = data.name;
+    if (data.email !== undefined) rowData[headerMap['Email']] = data.email;
+    if (data.taskId !== undefined) rowData[headerMap['Task ID']] = data.taskId;
+    if (data.frequency !== undefined) rowData[headerMap['Frequency']] = data.frequency;
+    if (data.taskDescription !== undefined) rowData[headerMap['Task Description']] = data.taskDescription;
+    if (data.dueDate !== undefined) rowData[headerMap['Due Date']] = data.dueDate;
+    if (data.proofRequired !== undefined) rowData[headerMap['Proof is Required']] = data.proofRequired;
+    if (data.verifiedBy !== undefined) rowData[headerMap['Verified by']] = data.verifiedBy;
+    sheet.getRange(rowIndex, 1, 1, headers.length).setValues([rowData]);
+    return { success: true, message: 'Updated.' };
+  } catch (err) {
+    return { success: false, message: err.toString() };
+  }
+}
+
+
+
+function uploadTaskDocument(fileBlob, taskId, groupId, folderId) {
+  try {
+    const timestamp = new Date().getTime();
+    const originalName = typeof fileBlob.getName === 'function' ? fileBlob.getName() : (fileBlob.name || 'document');
+    const contentType = (typeof fileBlob.getContentType === 'function' ? fileBlob.getContentType() : fileBlob.type) || 'application/octet-stream';
+    const fileName = `task_${taskId}_${timestamp}_${originalName}`;
+
+    const fileMetadata = {
+      name: fileName,
+      parents: [folderId]
+    };
+
+    const blob = Utilities.newBlob(fileBlob.data || fileBlob.contents || fileBlob, contentType, originalName);
+    const file = Drive.Files.create(fileMetadata, blob);
+
+    const permission = {
+      role: 'reader',
+      type: 'anyone'
+    };
+    Drive.Permissions.create(permission, file.id);
+
+    const fileUrl = `https://drive.google.com/file/d/${file.id}/view`;
+    return { success: true, fileUrl };
+  } catch (err) {
+    Logger.log('uploadTaskDocument error: ' + err.toString());
+    return { success: false, message: err.toString() };
+  }
+}
+
+function completeTasks(updates) {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName('Checklist');
+    if (!sheet) throw new Error('Checklist sheet not found.');
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0];
+    
+    const taskIdCol = headers.indexOf('Task ID') + 1;
+    const documentCol = headers.indexOf('Document') + 1;
+    const actualCol = headers.indexOf('Actual') + 1;
+    const remarkCol = headers.indexOf('Remark') + 1;
+    
+    // Naye columns Auto-Verification check ke liye
+    const proofCol = headers.indexOf('Proof is Required') + 1;
+    const verifiedCol = headers.indexOf('Verified') + 1;
+    const verifiedTsCol = headers.indexOf('Verified Timestamp') + 1;
+
+    if (taskIdCol === 0 || actualCol === 0) {
+      throw new Error('Required columns not found.');
+    }
+
+    let updated = 0;
+    const timestamp = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
+
+    for (let update of updates) {
+      for (let i = 1; i < data.length; i++) {
+        if (data[i][taskIdCol - 1] === update.taskId) {
+          
+          if (documentCol > 0 && update.documentLink) {
+            sheet.getRange(i + 1, documentCol).setValue(update.documentLink);
+          }
+          if (update.actualTimestamp) {
+            sheet.getRange(i + 1, actualCol).setValue(update.actualTimestamp);
+          }
+          if (remarkCol > 0 && update.remark) {
+            sheet.getRange(i + 1, remarkCol).setValue(update.remark);
+          }
+
+          // --- AUTO-VERIFY LOGIC FOR CHECKLIST ---
+          // Agar Proof nahi manga gaya hai, toh task turant verify ho jayega
+          if (proofCol > 0 && verifiedCol > 0 && verifiedTsCol > 0) {
+            const isProofReq = String(data[i][proofCol - 1] || '').trim();
+            if (isProofReq !== 'Yes') {
+              sheet.getRange(i + 1, verifiedCol).setValue(true);
+              sheet.getRange(i + 1, verifiedTsCol).setValue(timestamp);
+            }
+          }
+
+          updated++;
+          break;
+        }
+      }
+    }
+
+    return { success: true, message: `Updated ${updated} task(s).` };
+  } catch (err) {
+    return { success: false, message: err.toString() };
+  }
+}
+
+
+
+function verifyTasks(taskIds) {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName('Checklist');
+    if (!sheet) throw new Error('Checklist sheet not found.');
+
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0];
+
+    const taskIdCol      = headers.indexOf('Task ID') + 1;
+    const verifiedCol    = headers.indexOf('Verified') + 1;
+    const verifiedTsCol  = headers.indexOf('Verified Timestamp') + 1;
+
+    if (taskIdCol === 0 || verifiedCol === 0 || verifiedTsCol === 0) {
+      throw new Error('Required columns (Task ID / Verified / Verified Timestamp) not found.');
+    }
+
+    const timestamp = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
+    let updated = 0;
+
+    for (const taskId of taskIds) {
+      for (let i = 1; i < data.length; i++) {
+        if (data[i][taskIdCol - 1] === taskId) {
+          sheet.getRange(i + 1, verifiedCol).setValue(true);
+          sheet.getRange(i + 1, verifiedTsCol).setValue(timestamp);
+          updated++;
+          break;
+        }
+      }
+    }
+
+    return { success: true, message: `Verified ${updated} task(s).` };
+  } catch (err) {
+    return { success: false, message: err.toString() };
+  }
+}
+
+
+
+
+function getDelegationData() {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    if (!ss) return [];
+    
+    let sheet = ss.getSheetByName('Delegation');
+    if (!sheet) return [];
+    
+    const data = sheet.getDataRange().getValues();
+    if (data.length < 2) return [];
+    const headers = data[0];
+
+    const dateTimeCols = new Set([0, 10, 15, 19]);
+
+    function formatDateTime(val) {
+      if (!val || isNaN(new Date(val).getTime())) return '';
+      const d = new Date(val);
+      const day = String(d.getDate()).padStart(2, '0');
+      const mon = d.toLocaleString('en-IN', { month: 'short' });
+      const yr  = String(d.getFullYear()).slice(-2);
+      const hh  = String(d.getHours()).padStart(2, '0');
+      const mm  = String(d.getMinutes()).padStart(2, '0');
+      const ss  = String(d.getSeconds()).padStart(2, '0');
+      return `${day} ${mon} ${yr} ${hh}:${mm}:${ss}`;
+    }
+
+    // NEW: safely converts ANY cell value into a plain, JSON-safe primitive.
+    // Prevents raw Date objects (e.g. from the "Last Reminder Sent" column)
+    // from breaking the google.script.run serialization bridge.
+    function sanitizeValue(val) {
+      if (val === null || val === undefined) return '';
+      if (val instanceof Date) {
+        if (isNaN(val.getTime())) return '';
+        return formatDateTime(val);
+      }
+      if (typeof val === 'number' || typeof val === 'boolean') return val;
+      return String(val);
+    }
+
+    const rows = [];
+    for (let i = 1; i < data.length; i++) {
+      const row = {};
+      headers.forEach((h, idx) => {
+        const rawValue = data[i][idx];
+        if (dateTimeCols.has(idx)) {
+          row[h] = formatDateTime(rawValue);
+        } else {
+          row[h] = sanitizeValue(rawValue);   // ← changed line
+        }
+      });
+      rows.push(row);
+    }
+    return rows;
+  } catch (e) {
+    console.error("Error in getDelegationData: " + e.message);
+    return [];
+  }
+}
+
+
+
+const DELEGATION_SHEET = 'Delegation';
+
+function _getDelegationSheet() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(DELEGATION_SHEET);
+  if (!sheet) throw new Error('Sheet "' + DELEGATION_SHEET + '" not found.');
+  return sheet;
+}
+
+// Generate a unique Task ID  e.g. "DEL-20250518-0042"
+function _generateTaskId(sheet) {
+  const datePart = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyyMMdd');
+  const lastRow = sheet.getLastRow();
+  const seq = String(lastRow).padStart(4, '0');
+  return 'DEL-' + datePart + '-' + seq;
+}
+
+
+function insertDelegationEntry(payload) {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName('Delegation');
+    if (!sheet) return { success: false, message: "Sheet 'Delegation' not found." };
+    const data = sheet.getDataRange().getValues();
+    
+    let maxIdNum = 0;
+    for (let i = 1; i < data.length; i++) {
+      const currentTaskId = String(data[i][1]).trim();
+      const match = currentTaskId.match(/Task-(\d+)/i);
+      if (match) {
+        const num = parseInt(match[1], 10);
+        if (num > maxIdNum) maxIdNum = num;
+      }
+    }
+    
+    const taskId = "Task-" + (maxIdNum + 1);
+    const timestamp = new Date();
+    
+    const rowData = [
+      timestamp, taskId, payload.delegator || '', payload.delegatee || '', payload.parentTask || '', 
+      payload.department || '', payload.taskTitle || '', payload.task || '', payload.priority || '', 
+      payload.score !== '' ? Number(payload.score) : '', payload.dueDate ? new Date(payload.dueDate) : '', 
+      payload.status || 'Pending', payload.proofRequired || 'No', payload.approvalRequired || 'No', 
+      payload.documentRequired || 'No', '', 0, '', '', ''
+    ];
+    sheet.appendRow(rowData);
+
+    // --- PURPLE THEME EMAIL SENDING LOGIC ---
+    try {
+      const delegateeEmail = getEmailByName(payload.delegatee);
+      if (delegateeEmail) {
+        const priorityColors = { High: '#ef4444', Medium: '#f59e0b', Low: '#22c55e' };
+        const priorityColor = priorityColors[payload.priority] || '#6b7280';
+
+        const htmlBody = `
+        <div style="font-family: Arial, Helvetica, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f4f5f7; padding: 24px;">
+          <div style="background: linear-gradient(135deg, #8b5cf6, #a855f7); border-radius: 16px 16px 0 0; padding: 28px 32px;">
+            <table width="100%"><tr>
+              <td>
+                <span style="display:inline-block; background:#ffffff; color:#8b5cf6; font-weight:bold; font-size:14px; padding:6px 14px; border-radius: 999px;">ERP SUITE</span>
+                <h1 style="color:#ffffff; font-size:22px; margin:14px 0 4px 0;">New Task Assigned</h1>
+                <p style="color:#ede9fe; font-size:13px; margin:0;">You have a new task waiting for you</p>
+              </td>
+            </tr></table>
+          </div>
+
+          <div style="background:#ffffff; padding:28px 32px; border-radius: 0 0 16px 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+            <p style="font-size:15px; color:#374151; margin:0 0 4px 0;">Hello <strong>${payload.delegatee}</strong>,</p>
+            <p style="font-size:14px; color:#6b7280; margin:0 0 20px 0;">A new task has been assigned to you by <strong>${payload.delegator}</strong>.</p>
+
+            <div style="background:#f9fafb; border:1px solid #e5e7eb; border-radius:12px; padding:18px 20px; margin-bottom:20px;">
+              <table width="100%" style="font-size:14px; color:#374151;" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td style="padding:6px 0; color:#9ca3af; width:120px;">Task ID</td>
+                  <td style="padding:6px 0; font-weight:bold; font-family: monospace; background:#ede9fe; color:#7c3aed; border-radius:6px; padding-left:8px; padding-right:8px; display:inline-block;">${taskId}</td>
+                </tr>
+                <tr>
+                  <td style="padding:6px 0; color:#9ca3af; vertical-align:top;">Title</td>
+                  <td style="padding:6px 0; font-weight:600;">${payload.taskTitle || '—'}</td>
+                </tr>
+                <tr>
+                  <td style="padding:6px 0; color:#9ca3af; vertical-align:top;">Description</td>
+                  <td style="padding:6px 0; color:#4b5563;">${payload.task || '—'}</td>
+                </tr>
+                <tr>
+                  <td style="padding:6px 0; color:#9ca3af;">Due Date</td>
+                  <td style="padding:6px 0; font-weight:600; color:#dc2626;">${payload.dueDate || '—'}</td>
+                </tr>
+                <tr>
+                  <td style="padding:6px 0; color:#9ca3af;">Priority</td>
+                  <td style="padding:6px 0;">
+                    <span style="background:${priorityColor}; color:#ffffff; font-size:12px; font-weight:bold; padding:3px 10px; border-radius:999px;">${payload.priority || 'Normal'}</span>
+                  </td>
+                </tr>
+              </table>
+            </div>
+
+            <p style="font-size:13px; color:#9ca3af; margin:0 0 22px 0;">Please log in to the ERP Suite to view full task details and complete it before the due date.</p>
+
+            <p style="font-size:12px; color:#c4c4c4; text-align:center; margin-top:28px; border-top:1px solid #f0f0f0; padding-top:14px;">
+              — ERP Suite &nbsp;|&nbsp; This is an automated notification
+            </p>
+          </div>
+        </div>`;
+
+        const plainBody = `Hello ${payload.delegatee},\n\nA new task has been assigned to you by ${payload.delegator}.\n\nTask ID: ${taskId}\nTask Title: ${payload.taskTitle || ''}\nDescription: ${payload.task || ''}\nDue Date: ${payload.dueDate || ''}\nPriority: ${payload.priority || ''}\n\nPlease log in to the ERP Suite to view more details.`;
+
+        MailApp.sendEmail({
+          to: delegateeEmail,
+          subject: `New Task Assigned: ${taskId}`,
+          body: plainBody,
+          htmlBody: htmlBody
+        });
+      }
+    } catch (mailErr) {
+      Logger.log('Task assignment email failed: ' + mailErr.toString());
+    }
+
+    const headers = sheet.getRange(1,1,1,sheet.getLastColumn()).getValues()[0];
+    const subMonCol = headers.indexOf('Sub Monitoring');
+    if (subMonCol !== -1) {
+      const lastRow = sheet.getLastRow();
+      sheet.getRange(lastRow, subMonCol + 1).setValue(payload.subMonitoring || 'No');
+    }
+    return { success: true, message: "Task " + taskId + " created successfully!" };
+  } catch (e) {
+    console.error("Error in insertDelegationEntry: " + e.message);
+    return { success: false, message: "Failed to insert task: " + e.message };
+  }
+}
+
+function updateDelegationEntry(payload) {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName('Delegation');
+    if (!sheet) return { success: false, message: "Sheet 'Delegation' not found." };
+    
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0];
+    
+    // Create a dynamic map of header names to column indexes (0-based)
+    const headerMap = {};
+    headers.forEach((h, idx) => { headerMap[String(h).trim()] = idx; });
+
+    // Dynamically find 'Task Id' or 'Task ID' column
+    const taskIdColIdx = headers.indexOf('Task Id') !== -1 ? headers.indexOf('Task Id') : headers.indexOf('Task ID');
+    if (taskIdColIdx === -1) return { success: false, message: "Task ID column not found in sheet." };
+
+    let targetRowIndex = -1;
+    // Search for row containing matching Task ID
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][taskIdColIdx]).trim() === String(payload.taskId).trim()) {
+        targetRowIndex = i + 1; // 1-indexed row number
+        break;
+      }
+    }
+    if (targetRowIndex === -1) {
+      return { success: false, message: "Task ID " + payload.taskId + " not found." };
+    }
+
+    // Dynamic Safe helper to write values by looking up header name
+   function writeValueByHeader(headerName, val, isDate = false) {
+  let colIdx = headers.indexOf(headerName);
+  if (colIdx === -1) {
+    // Try common alternate spellings automatically
+    const alternates = {
+      'Delegetee': 'Delegatee',
+      'Delegatee': 'Delegetee',
+      'Prority': 'Priority',
+      'Priority': 'Prority'
+    };
+    if (alternates[headerName]) colIdx = headers.indexOf(alternates[headerName]);
+  }
+  if (colIdx !== -1) {
+    sheet.getRange(targetRowIndex, colIdx + 1).setValue(isDate && val ? new Date(val) : val);
+  }
+}
+
+    // Update all editable columns dynamically by their Header Names
+    writeValueByHeader('Delegator', payload.delegator || '');
+    writeValueByHeader('Delegetee', payload.delegatee || '');         // Reassigned Delegatee (Saves correctly now)
+    writeValueByHeader('Parent Task', payload.parentTask || '');
+    writeValueByHeader('Department', payload.department || '');
+    writeValueByHeader('Task Title', payload.taskTitle || '');
+    writeValueByHeader('Task', payload.task || '');
+    writeValueByHeader('Prority', payload.priority || '');
+    writeValueByHeader('Score', payload.score !== '' ? Number(payload.score) : '');
+    writeValueByHeader('Due Date', payload.dueDate, true);
+    writeValueByHeader('Status', payload.status || 'Pending');
+    writeValueByHeader('Proof Required', payload.proofRequired || 'No');
+    writeValueByHeader('Approval Required', payload.approvalRequired || 'No');
+    writeValueByHeader('Document Required', payload.documentRequired || 'No');
+    writeValueByHeader('Sub Monitoring', payload.subMonitoring || 'No');
+
+    return { success: true, message: "Task " + payload.taskId + " updated successfully!" };
+  } catch (e) {
+    console.error("Error in updateDelegationEntry: " + e.message);
+    return { success: false, message: "Failed to update task: " + e.message };
+  }
+}
+
+function deleteDelegationEntry(taskIds) {
+  try {
+    const sheet = _getDelegationSheet();
+    const data  = sheet.getDataRange().getValues();
+    // Standardize input as an array
+    const idsToDelete = Array.isArray(taskIds) 
+      ? taskIds.map(id => String(id).trim()) 
+      : [String(taskIds).trim()];
+    if (idsToDelete.length === 0) {
+      return { success: false, message: "No Task IDs provided for deletion." };
+    }
+    const rowsToDelete = [];
+    // Find row indices for matching task IDs in Column B (Index 1)
+    for (let i = 1; i < data.length; i++) {
+      const currentTaskId = String(data[i][1]).trim();
+      if (idsToDelete.includes(currentTaskId)) {
+        rowsToDelete.push(i + 1); // 1-indexed row number
+      }
+    }
+    if (rowsToDelete.length === 0) {
+      return { success: false, message: "No matching tasks found to delete." };
+    }
+    // Sort rows in descending order to delete from bottom to top
+    rowsToDelete.sort((a, b) => b - a);
+    // Perform deletions sequentially
+    rowsToDelete.forEach(rowIndex => {
+      sheet.deleteRow(rowIndex);
+    });
+    const msg = rowsToDelete.length === 1 
+      ? 'Task deleted successfully.' 
+      : `${rowsToDelete.length} tasks deleted successfully.`;
+    return { success: true, message: msg };
+  } catch (e) {
+    return { success: false, message: e.message };
+  }
+}
+
+
+
+
+function getDoerlistDelegation() {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    if (!ss) {
+      throw new Error("Active spreadsheet not found.");
+    }
+    
+    const sheet = ss.getSheetByName('Doer List');
+    if (!sheet) {
+      console.warn("Sheet 'Doer List' was not found. Returning empty array.");
+      return [];
+    }
+    
+    const data = sheet.getDataRange().getValues();
+    const result = [];
+    
+    // Row 0 is header. Data starts from index 1.
+    // Column A (index 0): Name (Delegatee)
+    // Column F (index 5): Department
+    // Column G (index 6): Delegator(s) (comma-separated)
+    for (let i = 1; i < data.length; i++) {
+      const delegatee = String(data[i][0] || '').trim();
+      const department = String(data[i][5] || '').trim();
+      const delegatorString = String(data[i][6] || '').trim();
+      
+      if (delegatee) {
+        // If there are delegators listed, split them by comma and map each combination
+        if (delegatorString) {
+          const delegators = delegatorString.split(',').map(d => d.trim()).filter(Boolean);
+          
+          if (delegators.length > 0) {
+            for (const delegator of delegators) {
+              result.push({
+                delegator: delegator,
+                delegatee: delegatee,
+                department: department
+              });
+            }
+          } else {
+            // Edge case: string was just commas or spaces
+            result.push({
+              delegator: '',
+              delegatee: delegatee,
+              department: department
+            });
+          }
+        } else {
+          // If no delegator assigned, still push the delegatee and department
+          result.push({
+            delegator: '',
+            delegatee: delegatee,
+            department: department
+          });
+        }
+      }
+    }
+    
+    console.log("Successfully fetched " + result.length + " hierarchy records from Doer List.");
+    return result;
+    
+  } catch (e) {
+    console.error("Error in getChartData: " + e.message);
+    return [];
+  }
+}
+
+
+
+function updateBulkStatusAndRemark(taskIds, status, remark) {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName('Delegation');
+    if (!sheet) return { success: false, message: "Sheet 'Delegation' not found." };
+    const data = sheet.getDataRange().getValues();
+    
+    // Create a lookup dictionary of updates
+    // Key: Task ID (string), Value: { status, remark, user }
+    const updatesMap = {};
+    
+    // Scenario A: Input is an array of objects [{ taskId, status, remark, user }] from the sidebar
+    if (Array.isArray(taskIds) && taskIds.length > 0 && typeof taskIds[0] === 'object' && taskIds[0] !== null) {
+      taskIds.forEach(item => {
+        if (item.taskId) {
+          updatesMap[String(item.taskId).trim()] = {
+            status: item.status || "",
+            remark: item.remark || "",
+            user: item.user || ""
+          };
+        }
+      });
+    } else {
+      // Scenario B: Input is the traditional format (array of IDs or single ID, with separate status/remark)
+      const targetIds = Array.isArray(taskIds) 
+        ? taskIds.map(id => String(id).trim()) 
+        : [String(taskIds).trim()];
+      
+      targetIds.forEach(id => {
+        if (id) {
+          updatesMap[id] = {
+            status: status || "",
+            remark: remark || "",
+            user: ""
+          };
+        }
+      });
+    }
+
+    const targetIdsList = Object.keys(updatesMap);
+    if (targetIdsList.length === 0) {
+      return { success: false, message: "No Task IDs provided." };
+    }
+
+    let updatedCount = 0;
+    const now = new Date();
+    const timestampStr = Utilities.formatDate(now, Session.getScriptTimeZone(), "dd MMM yy HH:mm:ss");
+
+    // Loop through the spreadsheet rows (skip header row 0)
+    for (let i = 1; i < data.length; i++) {
+      const currentTaskId = String(data[i][1]).trim(); // Column B (Index 1) is Task ID
+      
+      if (updatesMap.hasOwnProperty(currentTaskId)) {
+        const rowIndex = i + 1; // Convert to 1-indexed row number
+        const updateInfo = updatesMap[currentTaskId];
+        
+        let finalStatus = updateInfo.status;
+        
+        // --- 1. Automatic Delay Calculations on 'Completed' ---
+        if (updateInfo.status === 'Completed') {
+          const completionTimeVal = data[i][19]; // Column T (Index 19) - Completion Time
+          let completionDate = parseBackendDate(completionTimeVal);
+          
+          // If there is NO completion timestamp yet, populate it as 'now'
+          if (!completionDate) {
+            completionDate = now;
+            sheet.getRange(rowIndex, 20).setValue(now);
+          }
+          
+          const revisedDateVal = data[i][15]; // Column P (Index 15) - Revised Date
+          const dueDateVal = data[i][10];     // Column K (Index 10) - Due Date
+          
+          const revisedDate = parseBackendDate(revisedDateVal);
+          const dueDate = parseBackendDate(dueDateVal);
+          
+          // Whichever date is available (Revised Date takes priority if both exist)
+          const targetLimitDate = revisedDate || dueDate;
+          
+          if (targetLimitDate) {
+            // Compare timestamps (milliseconds)
+            if (completionDate.getTime() > targetLimitDate.getTime()) {
+              finalStatus = 'Completed With Delay';
+            } else {
+              finalStatus = 'Completed';
+            }
+          } else {
+            finalStatus = 'Completed';
+          }
+        }
+
+        // --- 2. Manage Historical Remark Array in Column R (Index 17 / Column 18) ---
+        let history = [];
+        const currentRemarkValue = String(data[i][17]).trim(); // Column R
+        if (currentRemarkValue) {
+          try {
+            history = JSON.parse(currentRemarkValue);
+            if (!Array.isArray(history)) {
+              history = [{"time": "Original", "remark": currentRemarkValue, "status": ""}];
+            }
+          } catch (e) {
+            history = [{"time": "Original", "remark": currentRemarkValue, "status": ""}];
+          }
+        }
+        
+        // Add the new update to history list (records the calculated final status!)
+        history.push({
+          "time": timestampStr,
+          "remark": updateInfo.remark,
+          "status": finalStatus || "No Change",
+          "user": updateInfo.user || ""
+        });
+        sheet.getRange(rowIndex, 18).setValue(JSON.stringify(history));
+
+        // --- 3. Manage Status Update in Column L (Index 11 / Column 12) ---
+        if (finalStatus) {
+          sheet.getRange(rowIndex, 12).setValue(finalStatus);
+          
+          // --- 4. Clear Completion Time in Column T if status becomes Pending ---
+          if (finalStatus === 'Pending') {
+            sheet.getRange(rowIndex, 20).setValue(""); // Clear Completion Time if reverted to Pending
+          }
+        }
+        updatedCount++;
+      }
+    }
+
+    const msg = updatedCount === 1 
+      ? "Task updated successfully!" 
+      : updatedCount + " tasks updated successfully!";
+    return { success: true, message: msg };
+  } catch (e) {
+    console.error("Error in updateBulkStatusAndRemark: " + e.message);
+    return { success: false, message: "Failed to update: " + e.message };
+  }
+}
+
+// Robust helper to parse different Date types (JavaScript Date vs String representations)
+function parseBackendDate(val) {
+  if (!val) return null;
+  if (val instanceof Date) return val;
+  
+  const str = String(val).trim();
+  if (!str) return null;
+  
+  // Try standard date parsing
+  let d = new Date(str);
+  if (!isNaN(d.getTime())) return d;
+  
+  // Custom parser for standard "dd MMM yy HH:mm:ss" formats
+  try {
+    const parts = str.split(/\s+/);
+    if (parts.length >= 3) {
+      const day = parseInt(parts[0], 10);
+      const monthStr = parts[1];
+      const yearStr = parts[2];
+      
+      const monthNames = {
+        jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
+        jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11
+      };
+      
+      const month = monthNames[monthStr.toLowerCase().substring(0, 3)];
+      if (month !== undefined) {
+        let year = parseInt(yearStr, 10);
+        if (year < 100) year += 2000;
+        
+        let hrs = 0, mins = 0, secs = 0;
+        if (parts[3]) {
+          const timeParts = parts[3].split(':');
+          hrs = parseInt(timeParts[0] || 0, 10);
+          mins = parseInt(timeParts[1] || 0, 10);
+          secs = parseInt(timeParts[2] || 0, 10);
+        }
+        const parsedDate = new Date(year, month, day, hrs, mins, secs);
+        if (!isNaN(parsedDate.getTime())) return parsedDate;
+      }
+    }
+  } catch (e) {
+    console.warn("Custom parsing failed for: " + str);
+  }
+  return null;
+}
+
+
+
+
+
+
+
+/**
+ * Completes selected Delegation tasks, uploads their proof URLs, and appends completion remarks to history.
+ */
+function completeDelegationTasks(updates) {
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sheet = ss.getSheetByName('Delegation');
+    if (!sheet) throw new Error("Delegation sheet not found");
+
+    var data = sheet.getDataRange().getValues();
+    if (data.length < 2) throw new Error("No data found in Delegation sheet");
+
+    var headers = data[0];
+    var taskIdColIdx = headers.indexOf('Task Id');
+    var statusColIdx = headers.indexOf('Status');
+    var proofColIdx = headers.indexOf('Proof of Completion');
+    var complTimeColIdx = headers.indexOf('Completion Time');
+    var remarkColIdx = headers.indexOf('Remark');
+    var approvalColIdx = headers.indexOf('Approval Required');
+    var dueDateColIdx = headers.indexOf('Due Date');
+    var revisedDateColIdx = headers.indexOf('Revised Date');
+
+    if (taskIdColIdx === -1) throw new Error("'Task Id' column not found");
+
+    var count = 0;
+    updates.forEach(function(upd) {
+      var targetId = String(upd.taskId).trim();
+      
+      for (var r = 1; r < data.length; r++) {
+        var rowId = String(data[r][taskIdColIdx]).trim();
+        if (rowId === targetId) {
+          var rowNum = r + 1;
+          
+          // 1. Check Approval Requirement
+          var approvalReq = 'No';
+          if (approvalColIdx !== -1) {
+            approvalReq = String(data[r][approvalColIdx]).trim();
+          }
+          
+          // 2. Check for Completion Delay
+          var isDelayed = false;
+          var dueDateVal = dueDateColIdx !== -1 ? data[r][dueDateColIdx] : '';
+          var revisedDateVal = revisedDateColIdx !== -1 ? data[r][revisedDateColIdx] : '';
+          
+          var targetDateStr = revisedDateVal || dueDateVal;
+          if (targetDateStr) {
+            var targetDate = new Date(targetDateStr);
+            if (!isNaN(targetDate.getTime())) {
+              // Set targetDate to end of that day (23:59:59.999) to prevent false delays
+              targetDate.setHours(23, 59, 59, 999);
+              var compDate = new Date();
+              if (compDate > targetDate) {
+                isDelayed = true;
+              }
+            }
+          }
+          
+          // 3. Determine Final Status to write
+          var finalStatus = 'Completed';
+          if (approvalReq === 'Yes') {
+            finalStatus = 'Approval Waiting';
+          } else if (isDelayed) {
+            finalStatus = 'Completed With Delay';
+          }
+          
+          if (statusColIdx !== -1) {
+            sheet.getRange(rowNum, statusColIdx + 1).setValue(finalStatus);
+          }
+          if (proofColIdx !== -1) {
+            sheet.getRange(rowNum, proofColIdx + 1).setValue(upd.documentLink || '');
+          }
+          if (complTimeColIdx !== -1) {
+            sheet.getRange(rowNum, complTimeColIdx + 1).setValue(upd.actualTimestamp); // Sent as 24h format
+          }
+          if (remarkColIdx !== -1) {
+            var history = [];
+            var rawRemark = data[r][remarkColIdx];
+            if (rawRemark) {
+              try {
+                history = JSON.parse(rawRemark);
+                if (!Array.isArray(history)) {
+                  history = [{ time: 'Original', remark: String(rawRemark), user: '', status: '' }];
+                }
+              } catch (e) {
+                history = [{ time: 'Original', remark: String(rawRemark), user: '', status: '' }];
+              }
+            }
+            history.push({
+              time: upd.actualTimestamp,
+              remark: upd.remark || 'Completed task',
+              user: upd.user || '',
+              status: finalStatus
+            });
+            sheet.getRange(rowNum, remarkColIdx + 1).setValue(JSON.stringify(history));
+          }
+          count++;
+          break; 
+        }
+      }
+    });
+
+    return { success: true, message: "Successfully completed " + count + " delegation task(s)!" };
+  } catch (e) {
+    return { success: false, message: e.message };
+  }
+}
+
+
+
+function reviseDelegationTasks(updates) {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    if (!ss) throw new Error("Active spreadsheet not found");
+    const sheet = ss.getSheetByName('Delegation');
+    if (!sheet) throw new Error("Delegation sheet not found");
+
+    const data = sheet.getDataRange().getValues();
+    if (data.length < 2) throw new Error("No data found in Delegation sheet");
+
+    const headers = data[0];
+    const taskIdColIdx = headers.indexOf('Task Id');
+    const revisedDateColIdx = headers.indexOf('Revised Date');
+    const revCountColIdx = headers.indexOf('Count of Revisions');
+    const remarkColIdx = headers.indexOf('Remark');
+
+    if (taskIdColIdx === -1) throw new Error("'Task Id' column not found");
+
+    let count = 0;
+    updates.forEach(upd => {
+      const targetId = String(upd.taskId).trim();
+      
+      // Locate the target task row matching the Task Id
+      for (let r = 1; r < data.length; r++) {
+        const rowId = String(data[r][taskIdColIdx]).trim();
+        if (rowId === targetId) {
+          const rowNum = r + 1; // 1-indexed row number
+          
+          // 1. Overwrite Revised Date
+          if (revisedDateColIdx !== -1) {
+            sheet.getRange(rowNum, revisedDateColIdx + 1).setValue(upd.revisedDate);
+          }
+          // 2. Increment Count of Revisions
+          if (revCountColIdx !== -1) {
+            const currentCount = Number(data[r][revCountColIdx]) || 0;
+            sheet.getRange(rowNum, revCountColIdx + 1).setValue(currentCount + 1);
+          }
+          // 3. Append Remark Log
+          if (remarkColIdx !== -1) {
+            let history = [];
+            const rawRemark = data[r][remarkColIdx];
+            if (rawRemark) {
+              try {
+                history = JSON.parse(rawRemark);
+                if (!Array.isArray(history)) {
+                  history = [{ time: 'Original', remark: String(rawRemark), user: '', status: '' }];
+                }
+              } catch (e) {
+                history = [{ time: 'Original', remark: String(rawRemark), user: '', status: '' }];
+              }
+            }
+            history.push({
+              time: upd.timestamp,
+              remark: upd.remark || 'Revised due date',
+              user: upd.user || '',
+              status: 'Revised Due Date'
+            });
+            sheet.getRange(rowNum, remarkColIdx + 1).setValue(JSON.stringify(history));
+          }
+          count++;
+          break;
+        }
+      }
+    });
+
+    return { success: true, message: `Successfully revised due date for ${count} task(s)!` };
+  } catch (e) {
+    return { success: false, message: e.message };
+  }
+}
+
+// Email-linked session: verifies the stored session token against the Doer List
+
+function validateSession(username, sessionToken) {
+  try {
+    const sheet = getDoerListSheet();
+    if (!sheet) return { valid: false };
+    const data = sheet.getDataRange().getValues();
+    for (let i = 0; i < data.length; i++) {
+      const rowUser  = String(data[i][0] || '').trim();
+      const rowEmail = String(data[i][3] || '').trim(); // Column D = Email
+      
+      if (rowUser === username) {
+        // Token format: username|email (base64-ish check)
+        const expected = Utilities.base64Encode(username + '|' + rowEmail);
+        
+        if (sessionToken === expected) {
+          const rowDept = String(data[i][5] || '').trim(); // Column F = Department
+          return { valid: true, username: rowUser, email: rowEmail, department: rowDept };
+        }
+        return { valid: false };
+      }
+    }
+    return { valid: false };
+  } catch (err) {
+    return { valid: false };
+  }
+}
+
+function authenticateUserWithToken(username, password) {
+  try {
+    const sheet = getDoerListSheet();
+    if (!sheet) return { success: false, message: 'Configuration error.' };
+    
+    // Get the email of the person currently logged into Google in their browser
+    const activeGoogleEmail = Session.getActiveUser().getEmail().trim().toLowerCase();
+    
+    const data = sheet.getDataRange().getValues();
+    
+    for (let i = 0; i < data.length; i++) {
+      const rowUser  = String(data[i][0] || '').trim();
+      const rowPass  = String(data[i][1] || '').trim();
+      const rowRole  = String(data[i][2] || 'User').trim();
+      const rowEmail = String(data[i][3] || '').trim().toLowerCase(); // Column D = Email
+      const rowDept  = String(data[i][5] || '').trim(); // Column F = Department
+      
+      if (rowUser === username && rowPass === password) {
+        
+        // --- STRICT EMAIL AUTHENTICATION CHECK ---
+        if (activeGoogleEmail !== '' && rowEmail !== '' && activeGoogleEmail !== rowEmail) {
+          return { 
+            success: false, 
+            message: `Security Blocked: Your browser is using "${activeGoogleEmail}". Please login to Google with "${rowEmail}" to access this account.` 
+          };
+        }
+        
+        const token = Utilities.base64Encode(username + '|' + rowEmail);
+        return { success: true, username: rowUser, role: rowRole, email: rowEmail, department: rowDept, token: token };
+      }
+    }
+    return { success: false, message: 'Invalid username or password.' };
+  } catch (err) {
+    return { success: false, message: 'Authentication error: ' + err.toString() };
+  }
+}
+
+function initiatePasswordReset(username) {
+  try {
+    const sheet = getDoerListSheet();
+    if (!sheet) return { success: false, message: 'Sheet not found.' };
+    const data = sheet.getDataRange().getValues();
+    
+    for (let i = 0; i < data.length; i++) {
+      const rowUser  = String(data[i][0] || '').trim();
+      const rowEmail = String(data[i][3] || '').trim();
+      
+      if (rowUser === username) {
+        if (!rowEmail) return { success: false, message: 'No email linked to this account.' };
+        
+        const otp = String(Math.floor(100000 + Math.random() * 900000));
+        const expiry = new Date(Date.now() + 15 * 60 * 1000).toISOString(); // 15 min
+        
+        const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+        let otpCol = headers.indexOf('Reset OTP');
+        let expiryCol = headers.indexOf('OTP Expiry');
+        
+        if (otpCol === -1) {
+          otpCol = sheet.getLastColumn(); 
+          sheet.getRange(1, otpCol + 1).setValue('Reset OTP');
+          sheet.getRange(1, otpCol + 2).setValue('OTP Expiry');
+          expiryCol = otpCol + 1;
+        }
+        
+        // --- ERROR FIX: Clear strict Data Validations before writing OTP ---
+        const otpCell = sheet.getRange(i + 1, otpCol + 1);
+        const expiryCell = sheet.getRange(i + 1, expiryCol + 1);
+        
+        otpCell.clearDataValidations();
+        expiryCell.clearDataValidations();
+        
+        // Now it will write safely without throwing an error
+        otpCell.setValue(otp);
+        expiryCell.setValue(expiry);
+        
+        try {
+          MailApp.sendEmail({
+            to: rowEmail,
+            subject: 'ERP Suite — Password Reset OTP',
+            body: `Hello ${rowUser},\n\nYour OTP for password reset is: ${otp}\n\nThis OTP is valid for 15 minutes.\n\nIf you did not request this, please ignore.\n\n— ERP Suite`
+          });
+        } catch (mailErr) {
+          otpCell.setValue('');
+          expiryCell.setValue('');
+          return { success: false, message: 'Mail sending failed. Please check permissions.' };
+        }
+        
+        return { success: true, message: `OTP sent to ${rowEmail.replace(/(.{2}).*(@)/, '$1***$2')}` };
+      }
+    }
+    return { success: false, message: 'Username not found.' };
+  } catch (err) {
+    return { success: false, message: err.toString() };
+  }
+}
+
+function confirmPasswordReset(username, otp, newPassword) {
+  try {
+    const sheet = getDoerListSheet();
+    if (!sheet) return { success: false, message: 'Sheet not found.' };
+    const data = sheet.getDataRange().getValues();
+    const headers = sheet.getRange(1,1,1,sheet.getLastColumn()).getValues()[0];
+    const otpCol    = headers.indexOf('Reset OTP');
+    const expiryCol = headers.indexOf('OTP Expiry');
+    const passCol   = 1; // Column B = password (0-indexed)
+    if (otpCol === -1) return { success: false, message: 'Reset not initiated.' };
+    for (let i = 1; i < data.length; i++) {
+      const rowUser   = String(data[i][0] || '').trim();
+      const rowOtp    = String(data[i][otpCol]   || '').trim();
+      const rowExpiry = String(data[i][expiryCol] || '').trim();
+      if (rowUser === username) {
+        if (rowOtp !== otp) return { success: false, message: 'Invalid OTP.' };
+        if (new Date() > new Date(rowExpiry)) return { success: false, message: 'OTP expired. Please request again.' };
+        if (!newPassword || newPassword.length < 6) return { success: false, message: 'Password must be at least 6 characters.' };
+        sheet.getRange(i + 1, passCol + 1).setValue(newPassword);
+        sheet.getRange(i + 1, otpCol + 1).setValue('');
+        sheet.getRange(i + 1, expiryCol + 1).setValue('');
+        return { success: true, message: 'Password reset successfully. Please log in.' };
+      }
+    }
+    return { success: false, message: 'User not found.' };
+  } catch (err) {
+    return { success: false, message: err.toString() };
+  }
+}
+
+function testMailPermission() {
+  MailApp.sendEmail({
+    to: Session.getActiveUser().getEmail(),
+    subject: 'ERP Permission Test',
+    body: 'Mail permission granted successfully.'
+  });
+}
+
+// Function to fetch unique departments from Column F of the "Doer List"
+function getDepartments() {
+  try {
+    const sheet = getDoerListSheet();
+    if (!sheet) return [];
+    
+    const data = sheet.getDataRange().getValues();
+    const departments = [];
+    
+    // Start from row 1 to skip the header row
+    for (let i = 1; i < data.length; i++) {
+      const dept = String(data[i][5] || '').trim(); // Index 5 is Column F
+      // Only add to array if it is not empty and not already added
+      if (dept !== '' && !departments.includes(dept)) {
+        departments.push(dept);
+      }
+    }
+    
+    // Return sorted alphabetically
+    return departments.sort();
+  } catch (err) {
+    console.error('Error fetching departments:', err);
+    return [];
+  }
+}
+
+
+function testMailPermission() {
+  MailApp.sendEmail({
+    to: Session.getActiveUser().getEmail(),
+    subject: 'ERP Permission Test',
+    body: 'Mail permission granted successfully.'
+  });
+}
+function reviseChecklistTasks(updates) {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName('Checklist');
+    if (!sheet) throw new Error("Checklist sheet not found");
+
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0];
+    const taskIdColIdx = headers.indexOf('Task ID');
+    const dueDateColIdx = headers.indexOf('Due Date');
+    const remarkColIdx = headers.indexOf('Remark');
+
+    if (taskIdColIdx === -1 || dueDateColIdx === -1) throw new Error("Required columns not found");
+
+    let count = 0;
+    updates.forEach(upd => {
+      const targetId = String(upd.taskId).trim();
+      
+      for (let r = 1; r < data.length; r++) {
+        if (String(data[r][taskIdColIdx]).trim() === targetId) {
+          const rowNum = r + 1;
+          
+          // Apply Revised Date
+          sheet.getRange(rowNum, dueDateColIdx + 1).setValue(upd.revisedDate);
+          
+          // Append the revision reason in remark
+          if (remarkColIdx !== -1) {
+            const currentRemark = data[r][remarkColIdx] || '';
+            const newRemarkText = `[Date Revised to ${upd.revisedDate}]: ${upd.remark}`;
+            const combinedRemark = currentRemark ? currentRemark + " | " + newRemarkText : newRemarkText;
+            sheet.getRange(rowNum, remarkColIdx + 1).setValue(combinedRemark);
+          }
+          count++;
+          break;
+        }
+      }
+    });
+    return { success: true, message: `Successfully revised due date for ${count} checklist task(s)!` };
+  } catch (e) {
+    return { success: false, message: e.message };
+  }
+}
+
+// Sends one reminder email per pending Delegation task per day.
+// Uses a "Last Reminder Sent" column (auto-created) to avoid duplicate sends
+// if the trigger fires more than once on the same day.
+function sendDailyPendingTaskReminders() {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName('Delegation');
+    if (!sheet) return;
+
+    const data = sheet.getDataRange().getValues();
+    if (data.length < 2) return;
+    const headers = data[0];
+
+    const taskIdColIdx     = headers.indexOf('Task Id');
+    const delegateeColIdx  = headers.indexOf('Delegetee');
+    const taskTitleColIdx  = headers.indexOf('Task Title');
+    const dueDateColIdx    = headers.indexOf('Due Date');
+    const revisedDateColIdx= headers.indexOf('Revised Date');
+    const statusColIdx     = headers.indexOf('Status');
+
+    if (taskIdColIdx === -1 || delegateeColIdx === -1 || statusColIdx === -1) {
+      Logger.log('sendDailyPendingTaskReminders: required columns missing');
+      return;
+    }
+
+    // Auto-create "Last Reminder Sent" tracking column if it doesn't exist
+    let lastReminderColIdx = headers.indexOf('Last Reminder Sent');
+    if (lastReminderColIdx === -1) {
+      lastReminderColIdx = sheet.getLastColumn();
+      sheet.getRange(1, lastReminderColIdx + 1).setValue('Last Reminder Sent');
+    }
+
+    const todayStr = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
+
+    for (let i = 1; i < data.length; i++) {
+      const status = String(data[i][statusColIdx] || '').trim();
+      if (status !== 'Pending') continue; // only remind for Pending tasks
+
+      const lastReminderVal = data[i][lastReminderColIdx];
+      const lastReminderStr = lastReminderVal
+        ? Utilities.formatDate(new Date(lastReminderVal), Session.getScriptTimeZone(), 'yyyy-MM-dd')
+        : '';
+      if (lastReminderStr === todayStr) continue; // already reminded today
+
+      const delegateeName = String(data[i][delegateeColIdx] || '').trim();
+      if (!delegateeName) continue;
+
+      const email = getEmailByName(delegateeName);
+      if (!email) continue;
+
+      const taskId    = data[i][taskIdColIdx];
+      const taskTitle = taskTitleColIdx !== -1 ? data[i][taskTitleColIdx] : '';
+      const dueDate   = (revisedDateColIdx !== -1 && data[i][revisedDateColIdx])
+        ? data[i][revisedDateColIdx]
+        : data[i][dueDateColIdx];
+
+      try {
+        MailApp.sendEmail({
+          to: email,
+          subject: `Reminder: Task ${taskId} is still Pending`,
+          body: `Hello ${delegateeName},\n\n` +
+                `This is a reminder that the following task assigned to you is still pending:\n\n` +
+                `Task ID: ${taskId}\n` +
+                `Task Title: ${taskTitle}\n` +
+                `Due Date: ${dueDate}\n\n` +
+                `Please complete it at the earliest.\n\n— ERP Suite`
+        });
+        sheet.getRange(i + 1, lastReminderColIdx + 1).setValue(new Date());
+      } catch (mailErr) {
+        Logger.log('Reminder email failed for ' + delegateeName + ': ' + mailErr.toString());
+      }
+    }
+  } catch (e) {
+    Logger.log('sendDailyPendingTaskReminders error: ' + e.toString());
+  }
+}
+
+// Master function to run all reminders
+function masterDailyReminders() {
+  sendDailyPendingTaskReminders(); // Runs Delegation Reminders
+  sendDailyChecklistReminders();   // Runs Checklist Reminders
+}
+
+// Run this ONCE manually from Apps Script Editor to set up the automated trigger
+function createDailyReminderTrigger() {
+  const triggers = ScriptApp.getProjectTriggers();
+  triggers.forEach(t => {
+    // Delete any old triggers to avoid duplicate emails
+    if (t.getHandlerFunction() === 'sendDailyPendingTaskReminders' || 
+        t.getHandlerFunction() === 'masterDailyReminders') {
+      ScriptApp.deleteTrigger(t);
+    }
+  });
+  
+  // Set trigger to run every day at 9 AM
+  ScriptApp.newTrigger('masterDailyReminders')
+    .timeBased()
+    .everyDays(1)
+    .atHour(9) 
+    .create();
+    
+  Logger.log("Daily reminders trigger created successfully for 9 AM!");
+}
+
+
+// Sends daily reminders for Checklist tasks where "Actual" column is empty
+function sendDailyChecklistReminders() {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName('Checklist');
+    if (!sheet) return;
+
+    const data = sheet.getDataRange().getValues();
+    if (data.length < 2) return;
+    const headers = data[0];
+
+    const taskIdColIdx   = headers.indexOf('Task ID');
+    const nameColIdx     = headers.indexOf('Name');
+    const emailColIdx    = headers.indexOf('Email');
+    const descColIdx     = headers.indexOf('Task Description');
+    const dueDateColIdx  = headers.indexOf('Due Date');
+    const actualColIdx   = headers.indexOf('Actual'); 
+
+    if (taskIdColIdx === -1 || nameColIdx === -1 || actualColIdx === -1) {
+      Logger.log('sendDailyChecklistReminders: required columns missing');
+      return;
+    }
+
+    // Auto-create "Last Reminder Sent" tracking column for Checklist
+    let lastReminderColIdx = headers.indexOf('Last Reminder Sent');
+    if (lastReminderColIdx === -1) {
+      lastReminderColIdx = sheet.getLastColumn();
+      sheet.getRange(1, lastReminderColIdx + 1).setValue('Last Reminder Sent');
+    }
+
+    const todayStr = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
+
+    for (let i = 1; i < data.length; i++) {
+      const actual = String(data[i][actualColIdx] || '').trim();
+      if (actual !== '') continue; // Task is already completed
+
+      const lastReminderVal = data[i][lastReminderColIdx];
+      const lastReminderStr = lastReminderVal
+        ? Utilities.formatDate(new Date(lastReminderVal), Session.getScriptTimeZone(), 'yyyy-MM-dd')
+        : '';
+      if (lastReminderStr === todayStr) continue; // Already reminded today
+
+      const delegateeName = String(data[i][nameColIdx] || '').trim();
+      const email = String(data[i][emailColIdx] || '').trim() || getEmailByName(delegateeName);
+      if (!email) continue;
+
+      const taskId    = data[i][taskIdColIdx];
+      const taskDesc  = descColIdx !== -1 ? data[i][descColIdx] : '';
+      const dueDate   = dueDateColIdx !== -1 ? data[i][dueDateColIdx] : '';
+      
+      let formattedDueDate = dueDate;
+      if (dueDate instanceof Date) {
+        formattedDueDate = Utilities.formatDate(dueDate, Session.getScriptTimeZone(), 'dd MMM yyyy');
+      }
+
+      try {
+        MailApp.sendEmail({
+          to: email,
+          subject: `Reminder: Checklist Task ${taskId} is Pending`,
+          body: `Hello ${delegateeName},\n\n` +
+                `This is a reminder that the following routine Checklist task is pending:\n\n` +
+                `Task ID: ${taskId}\n` +
+                `Task Description: ${taskDesc}\n` +
+                `Due Date: ${formattedDueDate}\n\n` +
+                `Please complete it in the ERP Suite at the earliest.\n\n— ERP Suite`
+        });
+        sheet.getRange(i + 1, lastReminderColIdx + 1).setValue(new Date());
+      } catch (mailErr) {
+        Logger.log('Checklist Reminder email failed for ' + delegateeName + ': ' + mailErr.toString());
+      }
+    }
+  } catch (e) {
+    Logger.log('sendDailyChecklistReminders error: ' + e.toString());
+  }
+}

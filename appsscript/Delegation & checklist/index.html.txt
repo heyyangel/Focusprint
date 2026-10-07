@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ERP System</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;400;500;600;700&display=swap" rel="stylesheet">
+  </head>
+  <body class="bg-gray-50">
+
+    <!-- LOGIN CONTAINER -->
+    <div id="loginContainer" class="min-h-screen flex items-center justify-center px-4">
+      <div class="max-w-md w-full bg-white rounded-2xl shadow-xl p-8 border border-gray-100">
+        <div class="flex justify-center mb-6">
+          <img src="https://drive.google.com/thumbnail?id=1AyOcwHtS_VZpCJLV2KOijI49zUDULNRB&sz=w400" alt="Focus Prints Logo" class="h-16 w-auto object-contain">
+        </div>
+        <h2 class="text-2xl font-bold text-gray-800 text-center mb-2">ERP Access</h2>
+        <p class="text-gray-500 text-center text-sm mb-6">Sign in to your workspace</p>
+        
+        <div class="space-y-4">
+          <div>
+            <label class="block text-gray-700 font-medium mb-1">Username</label>
+            <div class="relative">
+              <i class="fas fa-user absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
+              <input type="text" id="loginUsername" list="usernameOptions" 
+                class="w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                placeholder="Select or type username">
+              <datalist id="usernameOptions"></datalist>
+            </div>
+          </div>
+          <div>
+            <label class="block text-gray-700 font-medium mb-1">Password</label>
+            <div class="relative">
+              <i class="fas fa-lock absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
+              <input type="password" id="loginPassword" 
+                class="w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                placeholder="••••••">
+            </div>
+          </div>
+          <button id="loginBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 rounded-lg transition duration-200 flex items-center justify-center gap-2 shadow-md">
+            <i class="fas fa-arrow-right-to-bracket"></i> Sign In
+          </button>
+          <div id="loginError" class="text-red-500 text-sm text-center mt-2 hidden"></div>
+          <div class="text-center mt-2">
+            <button id="forgotPassBtn" class="text-xs text-blue-500 hover:underline">Forgot Password?</button>
+          </div>
+
+          <!-- Password Reset Modal -->
+          <div id="resetModal" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center px-4">
+            <div class="bg-white rounded-2xl shadow-xl p-6 w-full max-w-sm space-y-4">
+              <h3 class="font-bold text-gray-800 text-lg flex items-center gap-2"><i class="fas fa-key text-blue-500"></i> Reset Password</h3>
+
+              <!-- Step 1: Enter username -->
+              <div id="resetStep1">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Username</label>
+                <input id="resetUsername" type="text" class="w-full border rounded-lg px-3 py-2 text-sm" placeholder="Your username">
+                <button id="sendOtpBtn" class="mt-3 w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg text-sm font-semibold">Send OTP</button>
+              </div>
+
+              <!-- Step 2: Enter OTP + new password -->
+              <div id="resetStep2" class="hidden space-y-3">
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">OTP (from email)</label>
+                  <input id="resetOtp" type="text" maxlength="6" class="w-full border rounded-lg px-3 py-2 text-sm tracking-widest font-mono" placeholder="6-digit OTP">
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">New Password</label>
+                  <input id="resetNewPass" type="password" class="w-full border rounded-lg px-3 py-2 text-sm" placeholder="Min 6 characters">
+                </div>
+                <button id="confirmResetBtn" class="w-full bg-green-600 hover:bg-green-700 text-white py-2 rounded-lg text-sm font-semibold">Reset Password</button>
+              </div>
+
+              <div id="resetMsg" class="text-sm text-center hidden"></div>
+              <button id="closeResetModal" class="w-full text-gray-400 hover:text-gray-600 text-xs">Cancel</button>
+            </div>
+          </div>
+          <div class="text-xs text-gray-400 text-center mt-4">
+            <i class="fas fa-database"></i> 
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MAIN APP CONTAINER -->
+    <div id="appContainer" class="hidden">
+      <header class="bg-white shadow-md sticky top-0 z-50 min-h-16 border-b border-gray-200">
+        <div class="container mx-auto px-3 sm:px-6 py-2 sm:py-3 flex flex-col md:flex-row justify-between items-center gap-2 md:gap-4">
+         <div class="flex items-center justify-between w-full md:w-auto gap-3">
+            <div class="flex items-center space-x-2 sm:space-x-3">
+              <img src="https://drive.google.com/thumbnail?id=1AyOcwHtS_VZpCJLV2KOijI49zUDULNRB&sz=w400" alt="Focus Prints Logo" class="h-8 sm:h-10 w-auto object-contain">
+              <span class="text-lg sm:text-xl font-bold text-gray-800">ERP<span class="text-blue-600">Suite</span></span>
+            </div>
+
+            <!-- User chip + Exit (mobile position) -->
+            <div class="flex md:hidden items-center gap-2">
+              <div class="flex items-center gap-1.5 bg-gray-100 px-2 py-1 rounded-full">
+                <i class="fas fa-user-circle text-blue-600 text-lg"></i>
+                <div class="flex flex-col leading-tight">
+                  <span id="profileUserNameMobile" class="font-medium text-gray-700 text-xs">User</span>
+                  <span id="profileUserRoleMobile" class="text-[10px] text-gray-500"></span>
+                </div>
+              </div>
+              <button id="logoutBtnMobile" aria-label="Logout" class="text-gray-500 hover:text-red-600 transition bg-gray-100 w-9 h-9 rounded-full flex items-center justify-center">
+                <i class="fas fa-sign-out-alt"></i>
+              </button>
+            </div>
+          </div>
+          
+          <nav class="flex items-center gap-1 bg-gray-100 p-1 rounded-full shadow-inner w-full md:w-auto justify-center overflow-x-auto">
+            <button id="navDelegation" class="nav-btn px-3 sm:px-5 py-2 rounded-full font-medium text-sm text-gray-700 hover:bg-white hover:text-blue-600 transition-smooth flex items-center gap-2 whitespace-nowrap">
+              <i class="fas fa-tasks"></i> Delegation
+            </button>
+            <button id="navChecklist" class="nav-btn px-3 sm:px-5 py-2 rounded-full font-medium text-sm text-gray-700 hover:bg-white hover:text-blue-600 transition-smooth flex items-center gap-2 whitespace-nowrap">
+              <i class="fas fa-check-double"></i> Checklist
+            </button>
+            <button id="navTasks" class="nav-btn px-3 sm:px-5 py-2 rounded-full font-medium text-sm text-gray-700 hover:bg-white hover:text-blue-600 transition-smooth flex items-center gap-2 whitespace-nowrap">
+              <i class="fas fa-list-ul"></i> Tasks
+            </button>
+          </nav>
+
+          <!-- User chip + Exit (desktop position) -->
+          <div class="hidden md:flex items-center gap-4">
+            <div class="flex items-center gap-2 bg-gray-100 px-3 py-1.5 rounded-full">
+              <i class="fas fa-user-circle text-blue-600 text-xl"></i>
+              <div class="flex flex-col">
+                <span id="profileUserName" class="font-medium text-gray-700 text-sm">User</span>
+                <span id="profileUserRole" class="text-xs text-gray-500"></span>
+              </div>
+            </div>
+            <button id="logoutBtn" class="text-gray-500 hover:text-red-600 transition flex items-center gap-1 bg-gray-100 px-3 py-1.5 rounded-full">
+              <i class="fas fa-sign-out-alt"></i> <span class="text-sm">Exit</span>
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <main>
+        <div id="dynamicContent" class="bg-white min-h-[400px] transition-all">
+          <div class="flex flex-col items-center justify-center py-12 text-gray-400">
+            <i class="fas fa-spinner fa-pulse text-4xl mb-3"></i>
+            <p>Loading dashboard...</p>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <script>
+        let currentUser = null;
+        let currentRole = null;
+
+        function showLogin() {
+          document.getElementById('loginContainer').classList.remove('hidden');
+          document.getElementById('appContainer').classList.add('hidden');
+          document.getElementById('loginPassword').value = '';
+          document.getElementById('loginError').classList.add('hidden');
+        }
+
+        function showApp(user, role) {
+          currentUser = user;
+          currentRole = role;
+          document.getElementById('loginContainer').classList.add('hidden');
+          document.getElementById('appContainer').classList.remove('hidden');
+          document.getElementById('profileUserName').innerText = user;
+          document.getElementById('profileUserRole').innerText = role;
+          localStorage.setItem('erp_logged_user', user);
+          localStorage.setItem('erp_logged_role', role);
+          loadPageContent('delegation');
+        }
+
+        function loadPageContent(pageType) {
+          const contentDiv = document.getElementById('dynamicContent');
+          contentDiv.innerHTML = `<div class="flex justify-center items-center py-16"><i class="fas fa-circle-notch fa-spin text-3xl text-blue-500"></i><span class="ml-3 text-gray-600">Loading ${pageType}...</span></div>`;
+          
+          google.script.run
+            .withSuccessHandler(function(html) {
+              insertHtmlWithScripts(html, contentDiv);
+              setActiveNav(`nav${pageType.charAt(0).toUpperCase() + pageType.slice(1)}`);
+            })
+            .withFailureHandler(function(error) {
+              contentDiv.innerHTML = `<div class="bg-red-50 border border-red-200 text-red-700 p-6 rounded-xl"><i class="fas fa-exclamation-triangle"></i> Failed to load ${pageType}: ${error.message}</div>`;
+            })
+            .getHtmlContent(pageType);
+        }
+
+        function insertHtmlWithScripts(htmlString, targetElement) {
+          const temp = document.createElement('div');
+          temp.innerHTML = htmlString;
+          
+          const scripts = temp.querySelectorAll('script');
+          const scriptContents = [];
+          scripts.forEach(script => {
+            if (script.src) {
+              const newScript = document.createElement('script');
+              newScript.src = script.src;
+              document.head.appendChild(newScript);
+            } else {
+              scriptContents.push(script.innerHTML);
+            }
+            script.remove();
+          });
+          
+          targetElement.innerHTML = temp.innerHTML;
+          scriptContents.forEach(content => {
+            try {
+              eval(content);
+            } catch (err) {
+              console.error('Script execution error:', err);
+            }
+          });
+        }
+
+        function setActiveNav(activeId) {
+          const btns = ['navDelegation', 'navChecklist', 'navTasks'];
+          btns.forEach(id => {
+            const btn = document.getElementById(id);
+            if (!btn) return;
+            if (id === activeId) {
+              btn.classList.add('bg-white', 'text-blue-600', 'shadow-sm');
+              btn.classList.remove('text-gray-700');
+            } else {
+              btn.classList.remove('bg-white', 'text-blue-600', 'shadow-sm');
+              btn.classList.add('text-gray-700');
+            }
+          });
+        }
+              
+        function loadUsernameDropdown() {
+          google.script.run.withSuccessHandler(function(usernames) {
+            const datalist = document.getElementById('usernameOptions');
+            datalist.innerHTML = '';
+            usernames.forEach(uname => {
+              const option = document.createElement('option');
+              option.value = uname;
+              datalist.appendChild(option);
+            });
+          }).getUsernames();
+        }
+
+        function attemptLogin() {
+          const username = document.getElementById('loginUsername').value.trim();
+          const password = document.getElementById('loginPassword').value;
+          const errorDiv = document.getElementById('loginError');
+          if (!username || !password) {
+            errorDiv.innerText = 'Please enter both username and password';
+            errorDiv.classList.remove('hidden');
+            return;
+          }
+          errorDiv.classList.add('hidden');
+          const loginBtn = document.getElementById('loginBtn');
+          loginBtn.disabled = true;
+          loginBtn.innerHTML = '<i class="fas fa-spinner fa-pulse"></i> Authenticating...';
+          google.script.run.withSuccessHandler(function(result) {
+            loginBtn.disabled = false;
+            loginBtn.innerHTML = '<i class="fas fa-arrow-right-to-bracket"></i> Sign In';
+            if (result.success) {
+              localStorage.setItem('erp_session_token', result.token);
+              localStorage.setItem('erp_user_email', result.email || '');
+              showApp(result.username, result.role, result.department); // PASS DEPT HERE
+            } else {
+              errorDiv.innerText = result.message || 'Invalid username or password';
+              errorDiv.classList.remove('hidden');
+            }
+          }).withFailureHandler(function(error) {
+            loginBtn.disabled = false;
+            loginBtn.innerHTML = '<i class="fas fa-arrow-right-to-bracket"></i> Sign In';
+            errorDiv.innerText = 'Server error: ' + error.message;
+            errorDiv.classList.remove('hidden');
+          }).authenticateUserWithToken(username, password);
+        }
+              
+        function logout() {
+          localStorage.removeItem('erp_logged_user');
+          localStorage.removeItem('erp_logged_role');
+          localStorage.removeItem('erp_session_token');
+          localStorage.removeItem('erp_user_email');
+          currentUser = null;
+          currentRole = null;
+          showLogin();
+          document.getElementById('loginUsername').value = '';
+          document.getElementById('loginPassword').value = '';
+          loadUsernameDropdown();
+        }
+              
+        function checkSession() {
+          const savedUser  = localStorage.getItem('erp_logged_user');
+          const savedRole  = localStorage.getItem('erp_logged_role');
+          const savedToken = localStorage.getItem('erp_session_token');
+          if (savedUser && savedRole && savedToken) {
+            google.script.run
+              .withSuccessHandler(function(res) {
+                if (res.valid) {
+                  currentUser = savedUser;
+                  currentRole = savedRole;
+                  document.getElementById('loginContainer').classList.add('hidden');
+                  document.getElementById('appContainer').classList.remove('hidden');
+                  document.getElementById('profileUserName').innerText = savedUser;
+                  document.getElementById('profileUserRole').innerText = savedRole;
+                  loadPageContent('delegation');
+                } else {
+                  // Token invalid — clear and show login
+                  logout();
+                }
+              })
+              .withFailureHandler(function() { logout(); })
+              .validateSession(savedUser, savedToken);
+          } else {
+            showLogin();
+            loadUsernameDropdown();
+          }
+        }
+              
+        window.addEventListener('DOMContentLoaded', () => {
+          checkSession();
+          document.getElementById('loginBtn').addEventListener('click', attemptLogin);
+          document.getElementById('loginPassword').addEventListener('keypress', (e) => { if(e.key === 'Enter') attemptLogin(); });
+          document.getElementById('loginUsername').addEventListener('keypress', (e) => { if(e.key === 'Enter') attemptLogin(); });
+          document.getElementById('navDelegation').addEventListener('click', () => { if (currentUser) loadPageContent('delegation'); });
+          document.getElementById('navChecklist').addEventListener('click', () => { if (currentUser) loadPageContent('checklist'); });
+          document.getElementById('navTasks').addEventListener('click', () => { if (currentUser) loadPageContent('tasks'); });
+          document.getElementById('logoutBtn').addEventListener('click', logout);
+          document.getElementById('logoutBtnMobile')?.addEventListener('click', logout);
+        });
+
+
+
+
+
+        document.getElementById('forgotPassBtn').addEventListener('click', () => {
+          document.getElementById('resetModal').classList.remove('hidden');
+          document.getElementById('resetStep1').classList.remove('hidden');
+          document.getElementById('resetStep2').classList.add('hidden');
+          document.getElementById('resetMsg').classList.add('hidden');
+          document.getElementById('resetUsername').value = '';
+        });
+        document.getElementById('closeResetModal').addEventListener('click', () => {
+          document.getElementById('resetModal').classList.add('hidden');
+        });
+        document.getElementById('sendOtpBtn').addEventListener('click', () => {
+          const uname = document.getElementById('resetUsername').value.trim();
+          const msg   = document.getElementById('resetMsg');
+          if (!uname) { 
+            msg.textContent = 'Please enter your username.'; 
+            msg.className = 'text-sm text-center text-red-500'; 
+            msg.classList.remove('hidden'); 
+            return; 
+          }
+          
+          document.getElementById('sendOtpBtn').disabled = true;
+          document.getElementById('sendOtpBtn').textContent = 'Sending…';
+          
+          google.script.run
+            .withSuccessHandler(res => {
+              document.getElementById('sendOtpBtn').disabled = false;
+              document.getElementById('sendOtpBtn').textContent = 'Send OTP';
+              msg.classList.remove('hidden');
+              if (res.success) {
+                msg.textContent = res.message;
+                msg.className = 'text-sm text-center text-green-600';
+                document.getElementById('resetStep1').classList.add('hidden');
+                document.getElementById('resetStep2').classList.remove('hidden');
+              } else {
+                msg.textContent = res.message;
+                msg.className = 'text-sm text-center text-red-500';
+              }
+            })
+            .withFailureHandler(err => {
+              // Prevents the button from being stuck on "Sending..." if there is a severe backend error
+              document.getElementById('sendOtpBtn').disabled = false;
+              document.getElementById('sendOtpBtn').textContent = 'Send OTP';
+              msg.classList.remove('hidden');
+              msg.textContent = 'Backend Error: ' + err.message;
+              msg.className = 'text-sm text-center text-red-500';
+            })
+            .initiatePasswordReset(uname);
+        });
+        document.getElementById('confirmResetBtn').addEventListener('click', () => {
+          const uname   = document.getElementById('resetUsername').value.trim();
+          const otp     = document.getElementById('resetOtp').value.trim();
+          const newPass = document.getElementById('resetNewPass').value;
+          const msg     = document.getElementById('resetMsg');
+          if (!otp || !newPass) { msg.textContent = 'Please fill both fields.'; msg.className = 'text-sm text-center text-red-500'; msg.classList.remove('hidden'); return; }
+          document.getElementById('confirmResetBtn').disabled = true;
+          document.getElementById('confirmResetBtn').textContent = 'Resetting…';
+          google.script.run.withSuccessHandler(res => {
+            document.getElementById('confirmResetBtn').disabled = false;
+            document.getElementById('confirmResetBtn').textContent = 'Reset Password';
+            msg.classList.remove('hidden');
+            msg.textContent = res.message;
+            msg.className = `text-sm text-center ${res.success ? 'text-green-600' : 'text-red-500'}`;
+            if (res.success) setTimeout(() => document.getElementById('resetModal').classList.add('hidden'), 2000);
+          }).confirmPasswordReset(uname, otp, newPass);
+        });
+        function authorizeMailPermission() {
+          try {
+            const email = Session.getActiveUser().getEmail();
+            MailApp.sendEmail({
+              to: email,
+              subject: 'ERP Suite — Permission Test',
+              body: 'Mail permission successfully granted for ERP Suite.'
+            });
+            Logger.log('Mail sent successfully to: ' + email);
+          } catch (e) {
+            Logger.log('Error: ' + e.toString());
+          }
+        }
+         function configureNavigationByRole(role, department) {
+          const normRole = (role || '').trim().toLowerCase();
+          const normDept = (department || '').trim().toLowerCase();
+
+          const navDelegation = document.getElementById('navDelegation');
+          const navChecklist  = document.getElementById('navChecklist');
+          const navTasks      = document.getElementById('navTasks');
+
+          // Pehle sabko hide kardo (To avoid confusion on login)
+          if (navDelegation) navDelegation.classList.add('hidden');
+          if (navChecklist)  navChecklist.classList.add('hidden');
+          if (navTasks)      navTasks.classList.add('hidden');
+
+          // Condition 1: Delegator + Admin -> All 3 enabled
+          if (normRole === 'delegator' && normDept === 'admin') {
+            if (navDelegation) navDelegation.classList.remove('hidden');
+            if (navChecklist)  navChecklist.classList.remove('hidden');
+            if (navTasks)      navTasks.classList.remove('hidden');
+            loadPageContent('delegation');
+          } 
+          // Condition 2: Delegator + Not Admin -> Only Task & Delegation
+          else if (normRole === 'delegator' && normDept !== 'admin') {
+            if (navDelegation) navDelegation.classList.remove('hidden');
+            if (navTasks)      navTasks.classList.remove('hidden');
+            loadPageContent('delegation');
+          } 
+          // Condition 3: Delegatee + Not Admin -> Only Task
+          else if (normRole === 'delegatee' && normDept !== 'admin') {
+            if (navTasks)      navTasks.classList.remove('hidden');
+            loadPageContent('tasks');
+          }
+          // Admin ya PC role direct fallback
+          else if (normRole === 'admin' || normRole === 'pc') {
+            if (navDelegation) navDelegation.classList.remove('hidden');
+            if (navChecklist)  navChecklist.classList.remove('hidden');
+            if (navTasks)      navTasks.classList.remove('hidden');
+            loadPageContent('delegation');
+          }
+          else {
+            if (navTasks) navTasks.classList.remove('hidden');
+            loadPageContent('tasks');
+          }
+        }
+
+        // Update your existing showApp function
+        function setProfileDisplay(user, role) {
+          ['profileUserName', 'profileUserNameMobile'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.innerText = user;
+          });
+          ['profileUserRole', 'profileUserRoleMobile'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.innerText = role;
+          });
+        }
+
+          function showApp(user, role, department) {
+          currentUser = user;
+          currentRole = role;
+          document.getElementById('loginContainer').classList.add('hidden');
+          document.getElementById('appContainer').classList.remove('hidden');
+          setProfileDisplay(user, role);
+          localStorage.setItem('erp_logged_user', user);
+          localStorage.setItem('erp_logged_role', role);
+          localStorage.setItem('erp_logged_dept', department || '');
+
+          configureNavigationByRole(role, department);
+        }
+
+        // Update your existing checkSession function
+    
+        function checkSession() {
+          const savedUser  = localStorage.getItem('erp_logged_user');
+          const savedRole  = localStorage.getItem('erp_logged_role');
+          const savedToken = localStorage.getItem('erp_session_token');
+          if (savedUser && savedRole && savedToken) {
+            google.script.run
+              .withSuccessHandler(function(res) {
+                if (res.valid) {
+                  currentUser = savedUser;
+                  currentRole = savedRole;
+                  document.getElementById('loginContainer').classList.add('hidden');
+                  document.getElementById('appContainer').classList.remove('hidden');
+                  setProfileDisplay(savedUser, savedRole);
+                  // Res.department backend se aayega
+                  localStorage.setItem('erp_logged_dept', res.department || '');
+                  configureNavigationByRole(savedRole, res.department);
+                } else {
+                  logout();
+                }
+              }).withFailureHandler(function() { logout(); }).validateSession(savedUser, savedToken);
+          } else {
+            showLogin();
+            loadUsernameDropdown();
+          }
+        }
+    </script>
+  </body>
+</html>

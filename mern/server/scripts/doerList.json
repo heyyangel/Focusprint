@@ -1,0 +1,281 @@
+[
+  {
+    "name": "Devendra",
+    "password": "DD@Focus123",
+    "role": "Delegator",
+    "email": "",
+    "mobile": "",
+    "department": "Admin",
+    "delegators": []
+  },
+  {
+    "name": "Shreyansh",
+    "password": "SD@Focus123",
+    "role": "Delegator",
+    "email": "shreyansh@focusprints.com",
+    "mobile": "",
+    "department": "Admin",
+    "delegators": []
+  },
+  {
+    "name": "Mayur",
+    "password": "MC@Focus123",
+    "role": "Delegator",
+    "email": "sales@focusprints.com",
+    "mobile": "",
+    "department": "Admin",
+    "delegators": []
+  },
+  {
+    "name": "Darshil",
+    "password": "DC@Focus123",
+    "role": "Delegatee",
+    "email": "darshil@focusprints.com",
+    "mobile": "",
+    "department": "Admin",
+    "delegators": []
+  },
+  {
+    "name": "Dhaval",
+    "password": "DD1@Focus123",
+    "role": "Delegator",
+    "email": "dhaval@focusprints.com",
+    "mobile": "",
+    "department": "Admin",
+    "delegators": []
+  },
+  {
+    "name": "Archana",
+    "password": "AM@Focus123",
+    "role": "Delegator",
+    "email": "archana@focusprints.com",
+    "mobile": "",
+    "department": "Admin",
+    "delegators": []
+  },
+  {
+    "name": "Bharat",
+    "password": "Bharat@Focus123",
+    "role": "Delegatee",
+    "email": "bharat@focusprints.com",
+    "mobile": "",
+    "department": "Accounts",
+    "delegators": []
+  },
+  {
+    "name": "Sanjana",
+    "password": "Sanjana@Focus123",
+    "role": "Delegatee",
+    "email": "finance@focusprints.com",
+    "mobile": "",
+    "department": "Accounts",
+    "delegators": []
+  },
+  {
+    "name": "Puja",
+    "password": "PR@Focus123",
+    "role": "Delegatee",
+    "email": "accounts@focusprints.com",
+    "mobile": "",
+    "department": "Accounts",
+    "delegators": []
+  },
+  {
+    "name": "Poonam",
+    "password": "PY@Focus123",
+    "role": "Delegatee",
+    "email": "orders@focusprints.com",
+    "mobile": "",
+    "department": "LB CRM",
+    "delegators": []
+  },
+  {
+    "name": "Prachi",
+    "password": "Prachi@Focus123",
+    "role": "Delegatee",
+    "email": "crm@focusprints.com",
+    "mobile": "",
+    "department": "LB CRM",
+    "delegators": []
+  },
+  {
+    "name": "Priyanka",
+    "password": "PP@Focus123",
+    "role": "Delegatee",
+    "email": "crm@focusprints.com",
+    "mobile": "",
+    "department": "LB CRM",
+    "delegators": []
+  },
+  {
+    "name": "Kasimbee",
+    "password": "Kasimbee@Focus123",
+    "role": "Delegatee",
+    "email": "hr@focusprints.com",
+    "mobile": "",
+    "department": "HR",
+    "delegators": []
+  },
+  {
+    "name": "Dipali",
+    "password": "DK@Focus123",
+    "role": "Delegatee",
+    "email": "dtable@focusprints.com",
+    "mobile": "",
+    "department": "Merchandiser",
+    "delegators": []
+  },
+  {
+    "name": "Ujjwala",
+    "password": "Ujjwala@Focus123",
+    "role": "Delegatee",
+    "email": "support@focusprints.com",
+    "mobile": "",
+    "department": "LB CRM",
+    "delegators": []
+  },
+  {
+    "name": "Sonali",
+    "password": "Sonali@Focus123",
+    "role": "Delegatee",
+    "email": "focus@focusprints.com",
+    "mobile": "",
+    "department": "LB CRM",
+    "delegators": []
+  },
+  {
+    "name": "Urmila",
+    "password": "Urmila@Focus123",
+    "role": "Delegatee",
+    "email": "lb.stores@focusprints.com",
+    "mobile": "",
+    "department": "LB Stores",
+    "delegators": []
+  },
+  {
+    "name": "Aarti",
+    "password": "Aarti @Focus123",
+    "role": "Delegatee",
+    "email": "lb.stores@focusprints.com",
+    "mobile": "",
+    "department": "LB Stores",
+    "delegators": []
+  },
+  {
+    "name": "Rekha",
+    "password": "Rekha@Focus123",
+    "role": "Delegatee",
+    "email": "lb.stores@focusprints.com",
+    "mobile": "",
+    "department": "LB Stores",
+    "delegators": []
+  },
+  {
+    "name": "Akshay",
+    "password": "Akshay@Focus123",
+    "role": "Delegatee",
+    "email": "offset@focusprints.com",
+    "mobile": "",
+    "department": "LB Design",
+    "delegators": []
+  },
+  {
+    "name": "Aditya",
+    "password": "Aditya@Focus123",
+    "role": "Delegatee",
+    "email": "offset@focusprints.com",
+    "mobile": "",
+    "department": "LB Design",
+    "delegators": []
+  },
+  {
+    "name": "Sheetal",
+    "password": "Sheetal@Focus123",
+    "role": "Delegatee",
+    "email": "offset@focusprints.com",
+    "mobile": "",
+    "department": "LB Design",
+    "delegators": []
+  },
+  {
+    "name": "Kazi Taher",
+    "password": "KT@Focus123",
+    "role": "Delegatee",
+    "email": "",
+    "mobile": "",
+    "department": "LB Design",
+    "delegators": []
+  },
+  {
+    "name": "Shilpa",
+    "password": "Shilpa@Focus123",
+    "role": "Delegatee",
+    "email": "production1@focusprints.com",
+    "mobile": "",
+    "department": "KL CRM",
+    "delegators": []
+  },
+  {
+    "name": "Suhas",
+    "password": "Suhas@Focus123",
+    "role": "Delegatee",
+    "email": "kl.offset@focusprints.com",
+    "mobile": "",
+    "department": "KL Production",
+    "delegators": []
+  },
+  {
+    "name": "Sheetal Ghadi",
+    "password": "SG@Focus123",
+    "role": "Delegator",
+    "email": "pc@focusprints.com",
+    "mobile": "",
+    "department": "Admin",
+    "delegators": []
+  },
+  {
+    "name": "Akash",
+    "password": "Akash@123",
+    "role": "Delegator",
+    "email": "mis@focusprints.com",
+    "mobile": "",
+    "department": "Admin",
+    "delegators": []
+  },
+  {
+    "name": "Tanveer Momin",
+    "password": "Tanveer@Focus123",
+    "role": "Delegatee",
+    "email": "itservicefpllp@gmail.com",
+    "mobile": "",
+    "department": "IT",
+    "delegators": []
+  },
+  {
+    "name": "Shivram",
+    "password": "Shivram@Focus123",
+    "role": "Delegatee",
+    "email": "",
+    "mobile": "9870993935",
+    "department": "Office Boy",
+    "delegators": []
+  },
+  {
+    "name": "Admin",
+    "password": "Akash@123",
+    "role": "Delegator",
+    "email": "dtable@focusprints.com",
+    "mobile": "",
+    "department": "",
+    "delegators": []
+  },
+  {
+    "name": "radha",
+    "password": "Admin@123",
+    "role": "Delegatee",
+    "email": "dtable@focusprints.com",
+    "mobile": "",
+    "department": "MIS",
+    "delegators": []
+  }
+]

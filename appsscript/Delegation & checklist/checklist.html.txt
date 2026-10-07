@@ -1,0 +1,1351 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <style>
+      #checklistTable {
+        border-collapse: separate;
+        border-spacing: 0;
+      }
+      #checklistTable thead th {
+        position: sticky;
+        top: 0;
+        z-index: 25;
+        background-color: #f8fafc;
+      }
+      #checklistTableWrap {
+        max-height: calc(100dvh - 320px);
+      }
+      @media (min-width: 1024px) {
+        #checklistTableWrap { max-height: calc(100dvh - 220px); }
+      }
+    </style>
+  </head>
+  <body class="bg-gradient-to-br from-slate-50 to-blue-50 min-h-screen" style="font-family:'Inter',sans-serif">
+
+    <div class="flex flex-col lg:flex-row w-full px-3 sm:px-6 py-4 sm:py-6 gap-4 lg:gap-5">
+
+      <!-- LEFT SIDEBAR -->
+      <div class="w-full lg:w-60 shrink-0 h-fit static lg:sticky lg:top-20 lg:z-20 flex flex-col gap-0 rounded-2xl overflow-hidden shadow-lg border border-gray-100">
+        <button id="toggleSummaryBtn" type="button"
+          class="p-4 bg-gradient-to-r from-emerald-500 to-teal-500 w-full text-left flex items-center justify-between lg:pointer-events-none">
+          <h3 class="font-bold text-white flex items-center gap-2 text-sm">
+            <i class="fas fa-users"></i> People Summary
+          </h3>
+          <i id="toggleSummaryIcon" class="fas fa-chevron-down text-white text-xs lg:hidden transition-transform"></i>
+        </button>
+        <div id="summaryList" class="hidden lg:block divide-y divide-gray-50 max-h-[45vh] lg:max-h-[75vh] overflow-y-auto bg-white">
+          <div class="p-4 text-center text-gray-400 text-sm">
+            <i class="fas fa-spinner fa-pulse mr-1"></i> Loading...
+          </div>
+        </div>
+      </div>
+
+      <!-- MAIN CONTENT -->
+      <div class="flex-1 min-w-0 flex flex-col gap-4">
+
+        <!-- Header Row -->
+       <!-- STICKY Header Row Container -->
+     <div class="static lg:sticky lg:top-16 lg:z-30 bg-gradient-to-br from-slate-50 to-blue-50 pt-4 lg:pt-6 pb-3 lg:pb-4 -mt-4 lg:-mt-6 -mx-3 px-3 sm:-mx-6 sm:px-6 border-b border-gray-200 shadow-sm mb-2">
+        <!-- Header Row -->
+        <div class="flex flex-wrap justify-between items-center gap-3">
+          <div class="flex items-center gap-2.5 sm:gap-3">
+            <div class="bg-gradient-to-br from-emerald-400 to-teal-500 p-2 sm:p-2.5 rounded-2xl shadow-md shrink-0">
+              <i class="fas fa-check-double text-white text-base sm:text-xl"></i>
+            </div>
+            <div>
+              <h1 class="text-lg sm:text-2xl font-extrabold text-gray-800 leading-tight">
+                Checklist <span class="text-emerald-500">Manager</span>
+              </h1>
+              <p class="text-[10px] sm:text-xs text-gray-400 mt-0.5">Manage and track delegated tasks</p>
+            </div>
+          </div>
+
+          <div class="flex gap-2 items-center flex-wrap w-full sm:w-auto justify-end">
+            <div id="roleSwitcherContainer" class="hidden"></div>
+
+            <button id="openFilterBtn" aria-label="Filter tasks"
+              class="bg-white hover:bg-blue-50 text-gray-600 hover:text-blue-600 min-h-[40px] px-3 sm:px-4 py-2 rounded-xl shadow border border-gray-200 flex items-center gap-2 text-sm font-medium transition-all duration-150">
+              <i class="fas fa-sliders-h text-blue-400"></i>
+              <span class="hidden sm:inline">Filter</span>
+              <span id="filterBadge" class="hidden bg-blue-600 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center font-bold">0</span>
+            </button>
+
+            <div class="hidden md:flex bg-gray-100 rounded-full p-0.5 border border-gray-200 shadow-inner ml-1">
+              <div class="px-4 py-1.5 rounded-full text-xs font-bold bg-white text-blue-600 shadow cursor-default">
+                <i class="far fa-calendar-check mr-1"></i> Today &amp; Tomorrow Only
+              </div>
+            </div>
+
+            <button id="exportBtn" aria-label="Export CSV"
+              class="bg-white hover:bg-emerald-50 text-gray-600 hover:text-emerald-600 min-h-[40px] px-3 sm:px-4 py-2 rounded-xl shadow border border-gray-200 flex items-center gap-2 text-sm font-medium transition-all duration-150">
+              <i class="fas fa-file-csv text-emerald-500"></i>
+              <span class="hidden sm:inline">Export</span>
+            </button>
+
+            <button id="openBulkModalBtn" aria-label="Bulk add tasks"
+              class="bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white min-h-[40px] px-3 sm:px-4 py-2 rounded-xl shadow-md flex items-center gap-2 text-sm font-semibold transition-all duration-150">
+              <i class="fas fa-plus-circle"></i>
+              <span class="hidden sm:inline">Bulk Add</span>
+            </button>
+          </div>
+        </div>
+      </div>
+      <!-- END STICKY wrapper -->
+
+        <!-- Data Table -->
+        <div class="rounded-2xl overflow-hidden">
+          <div id="checklistTableWrap" class="overflow-auto bg-white rounded-2xl shadow-lg border border-gray-100">
+            <table id="checklistTable" class="min-w-full divide-y divide-gray-100">
+              <thead>
+                <tr class="bg-gradient-to-r from-gray-50 to-slate-100 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                  <th class="px-4 py-3.5 text-left w-8"></th>
+                  <th class="px-4 py-3.5 text-left"><i class="far fa-calendar-alt mr-1 text-blue-400"></i> Created</th>
+                  <th class="px-4 py-3.5 text-left"><i class="far fa-user mr-1 text-purple-400"></i> Name</th>
+                  <th class="px-4 py-3.5 text-left"><i class="fas fa-layer-group mr-1 text-indigo-400"></i> Group / Task</th>
+                  <th class="px-4 py-3.5 text-left"><i class="far fa-file-alt mr-1 text-orange-400"></i> Description</th>
+                  <th class="px-4 py-3.5 text-left"><i class="fas fa-sync-alt mr-1 text-teal-400"></i> Frequency</th>
+                  <th class="px-4 py-3.5 text-left"><i class="far fa-calendar-check mr-1 text-rose-400"></i> Due Date</th>
+                  <th class="px-4 py-3.5 text-left"><i class="fas fa-paperclip mr-1 text-yellow-500"></i> Proof</th>
+                  <th class="px-4 py-3.5 text-left"><i class="fas fa-user-check mr-1 text-green-500"></i> Verified by</th>
+                  <th class="px-4 py-3.5 text-center"><i class="fas fa-cog text-gray-400"></i></th>
+                </tr>
+              </thead>
+              <tbody id="checklistTableBody" class="divide-y divide-gray-50 bg-white">
+                <tr><td colspan="10" class="text-center py-16 text-gray-400">
+                  <i class="fas fa-spinner fa-pulse text-2xl mb-2 block"></i>
+                  <span class="text-sm">Loading tasks...</span>
+                </td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Pagination -->
+          <div id="paginationBar" class="px-5 py-3 border-t border-gray-100 bg-gray-50 flex flex-wrap items-center justify-between gap-3 hidden">
+            <span id="paginationInfo" class="text-xs text-gray-500"></span>
+            <div class="flex items-center gap-1">
+              <button id="pgFirst" class="px-2.5 py-1.5 rounded-lg bg-white border border-gray-200 text-gray-600 text-xs hover:bg-blue-50 hover:border-blue-300 disabled:opacity-40 disabled:cursor-not-allowed transition"><i class="fas fa-angle-double-left"></i></button>
+              <button id="pgPrev"  class="px-2.5 py-1.5 rounded-lg bg-white border border-gray-200 text-gray-600 text-xs hover:bg-blue-50 hover:border-blue-300 disabled:opacity-40 disabled:cursor-not-allowed transition"><i class="fas fa-angle-left"></i></button>
+              <div id="pgNumbers" class="flex gap-1"></div>
+              <button id="pgNext"  class="px-2.5 py-1.5 rounded-lg bg-white border border-gray-200 text-gray-600 text-xs hover:bg-blue-50 hover:border-blue-300 disabled:opacity-40 disabled:cursor-not-allowed transition"><i class="fas fa-angle-right"></i></button>
+              <button id="pgLast"  class="px-2.5 py-1.5 rounded-lg bg-white border border-gray-200 text-gray-600 text-xs hover:bg-blue-50 hover:border-blue-300 disabled:opacity-40 disabled:cursor-not-allowed transition"><i class="fas fa-angle-double-right"></i></button>
+              <select id="pgSize" class="ml-2 border border-gray-200 rounded-lg px-2 py-1.5 text-xs text-gray-600 bg-white focus:outline-none focus:ring-1 focus:ring-blue-300">
+                <option value="10">10 / page</option>
+                <option value="20" selected>20 / page</option>
+                <option value="50">50 / page</option>
+              </select>
+            </div>
+          </div>
+        </div>
+    </div>
+
+    <!-- ── FILTER PANEL ─────────────────────────────────────────────────── -->
+    <div id="filterModal" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 hidden">
+      <div id="filterSlidePanel"
+        class="absolute left-0 top-0 h-full w-full max-w-sm bg-white shadow-2xl transform -translate-x-full transition-transform duration-300 ease-in-out flex flex-col">
+        <div class="p-5 border-b flex justify-between items-center bg-gradient-to-r from-blue-50 to-indigo-50">
+          <h2 class="text-lg font-bold text-gray-800 flex items-center gap-2">
+            <i class="fas fa-sliders-h text-blue-500"></i> Filter Tasks
+          </h2>
+          <button id="closeFilterModal" class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-200 text-gray-500 transition"><i class="fas fa-times"></i></button>
+        </div>
+
+        <div class="flex-1 overflow-y-auto p-5 space-y-5">
+          <!-- Date Range Filter -->
+<div>
+  <label class="text-sm font-semibold text-gray-700 mb-1.5 block">Task Date Range</label>
+  <div class="grid grid-cols-2 gap-2">
+    <input id="filterFromDate" type="date" class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs outline-none">
+    <input id="filterToDate" type="date" class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs outline-none">
+  </div>
+</div>
+
+          <!-- Name multi-select -->
+          <div>
+            <div class="flex items-center justify-between mb-1.5">
+              <label class="text-sm font-semibold text-gray-700">Name</label>
+              <button class="clearSection text-xs text-blue-500 hover:underline" data-section="name">Clear</button>
+            </div>
+            <div class="relative mb-1.5">
+              <i class="fas fa-search absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs"></i>
+              <input id="searchName" type="text" placeholder="Search names…"
+                class="w-full pl-7 pr-3 py-1.5 border border-gray-200 rounded-lg text-xs focus:ring-1 focus:ring-blue-300 outline-none">
+            </div>
+            <div id="nameCheckboxList" class="max-h-40 overflow-y-auto border border-gray-100 rounded-xl divide-y divide-gray-50 bg-gray-50"></div>
+          </div>
+
+          <!-- Frequency multi-select -->
+          <div>
+            <div class="flex items-center justify-between mb-1.5">
+              <label class="text-sm font-semibold text-gray-700">Frequency</label>
+              <button class="clearSection text-xs text-blue-500 hover:underline" data-section="freq">Clear</button>
+            </div>
+            <div id="freqCheckboxList" class="border border-gray-100 rounded-xl divide-y divide-gray-50 bg-gray-50">
+              <label class="flex items-center gap-2.5 px-3 py-2 hover:bg-white cursor-pointer transition"><input type="checkbox" class="freq-cb accent-blue-600 w-3.5 h-3.5" value="Daily"><span class="text-sm text-gray-700">Daily</span></label>
+              <label class="flex items-center gap-2.5 px-3 py-2 hover:bg-white cursor-pointer transition"><input type="checkbox" class="freq-cb accent-blue-600 w-3.5 h-3.5" value="Weekly"><span class="text-sm text-gray-700">Weekly</span></label>
+              <label class="flex items-center gap-2.5 px-3 py-2 hover:bg-white cursor-pointer transition"><input type="checkbox" class="freq-cb accent-blue-600 w-3.5 h-3.5" value="Monthly"><span class="text-sm text-gray-700">Monthly</span></label>
+              <label class="flex items-center gap-2.5 px-3 py-2 hover:bg-white cursor-pointer transition"><input type="checkbox" class="freq-cb accent-blue-600 w-3.5 h-3.5" value="Quarterly"><span class="text-sm text-gray-700">Quarterly</span></label>
+              <label class="flex items-center gap-2.5 px-3 py-2 hover:bg-white cursor-pointer transition"><input type="checkbox" class="freq-cb accent-blue-600 w-3.5 h-3.5" value="Yearly"><span class="text-sm text-gray-700">Yearly</span></label>
+            </div>
+          </div>
+
+          <!-- Verified By multi-select (dynamic from data) -->
+          <div>
+            <div class="flex items-center justify-between mb-1.5">
+              <label class="text-sm font-semibold text-gray-700">Verified By</label>
+              <button class="clearSection text-xs text-blue-500 hover:underline" data-section="verified">Clear</button>
+            </div>
+            <div class="relative mb-1.5">
+              <i class="fas fa-search absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs"></i>
+              <input id="searchVerifier" type="text" placeholder="Search verifiers…"
+                class="w-full pl-7 pr-3 py-1.5 border border-gray-200 rounded-lg text-xs focus:ring-1 focus:ring-blue-300 outline-none">
+            </div>
+            <div id="verifiedCheckboxList" class="max-h-40 overflow-y-auto border border-gray-100 rounded-xl divide-y divide-gray-50 bg-gray-50">
+              <p class="text-xs text-gray-400 p-3 text-center">Loading…</p>
+            </div>
+          </div>
+
+        </div>
+
+        <div class="p-5 border-t bg-gray-50 flex gap-3">
+          <button id="clearAllFiltersBtn" class="flex-1 py-2.5 rounded-xl border border-gray-200 bg-white text-sm text-gray-600 font-medium hover:bg-gray-100 transition">Clear All</button>
+          <button id="applyFiltersBtn" class="flex-1 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold shadow transition">Apply</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── BULK ADD MODAL ──────────────────────────────────────────────── -->
+    <div id="bulkModal" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 hidden">
+      <div id="bulkSlidePanel"
+        class="absolute left-0 top-0 h-full w-full max-w-7xl bg-white shadow-2xl transform -translate-x-full transition-transform duration-300 ease-in-out flex flex-col">
+        <div class="p-5 border-b flex justify-between items-center bg-gradient-to-r from-emerald-50 to-teal-50">
+          <h2 class="text-lg font-bold text-gray-800 flex items-center gap-2">
+            <i class="fas fa-layer-group text-emerald-500"></i> Bulk Add Tasks
+          </h2>
+          <button id="closeBulkModal" class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-200 text-gray-500 transition"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="flex-1 overflow-y-auto p-5">
+          <div class="mb-4 flex justify-end">
+            <button id="addRowBtn" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-sm font-semibold flex items-center gap-2 shadow transition">
+              <i class="fas fa-plus"></i> Add Row
+            </button>
+          </div>
+          <div class="overflow-x-auto rounded-xl border border-gray-100 shadow-sm">
+            <table class="w-full" id="bulkTable">
+              <thead class="bg-gradient-to-r from-gray-50 to-slate-100">
+                <tr class="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                  <th class="p-3 text-left">Name *</th>
+                  <th class="p-3 text-left">Frequency</th>
+                  <th class="p-3 text-left">Due Date(s) *</th>
+                  <th class="p-3 text-left">Proof Required</th>
+                  <th class="p-3 text-left">Verified by</th>
+                  <th class="p-3 text-center">Action</th>
+                </tr>
+              </thead>
+              <tbody id="bulkTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="p-5 border-t bg-gray-50 flex justify-end gap-3">
+          <button id="cancelBulkBtn" class="px-5 py-2.5 bg-white border border-gray-200 rounded-xl text-sm text-gray-600 font-medium hover:bg-gray-100 transition">Cancel</button>
+          <button id="submitBulkBtn" class="px-5 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white rounded-xl text-sm font-semibold shadow-md flex items-center gap-2 transition">
+            <i class="fas fa-save"></i> Submit All
+          </button>
+        </div>
+      </div>
+    </div>
+    <!-- ── MULTI-DATE PICKER CALENDAR POPOVER ────────────────────────────── -->
+    <div id="multiDatePickerContainer" class="hidden fixed z-[150] top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white rounded-2xl shadow-2xl border border-gray-150 p-4 w-72">
+      <!-- Calendar Header -->
+      <div class="flex items-center justify-between mb-3">
+        <button id="calPrevMonth" type="button" class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-500 transition"><i class="fas fa-chevron-left text-xs"></i></button>
+        <span id="calMonthYearTitle" class="text-sm font-bold text-gray-800"></span>
+        <button id="calNextMonth" type="button" class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-500 transition"><i class="fas fa-chevron-right text-xs"></i></button>
+      </div>
+      
+      <!-- Calendar Weekdays -->
+      <div class="grid grid-cols-7 gap-1 text-center text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">
+        <div>Su</div><div>Mo</div><div>Tu</div><div>We</div><div>Th</div><div>Fr</div><div>Sa</div>
+      </div>
+      
+      <!-- Calendar Days Grid -->
+      <div id="calDaysGrid" class="grid grid-cols-7 gap-1 text-center mb-3"></div>
+      
+      <!-- Calendar Footer -->
+      <div class="flex items-center justify-between pt-3 border-t border-gray-100 text-xs">
+        <span id="calSelectionSummary" class="text-gray-500 font-medium">0 selected</span>
+        <div class="flex gap-1.5">
+          <button id="calClearBtn" type="button" class="px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 text-gray-600 font-medium transition">Clear</button>
+          <button id="calOkBtn" type="button" class="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold shadow transition">OK</button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // ── State ──────────────────────────────────────────────────────────────
+      let checklistData = [];
+      let usersList = [];
+      let allNames = [];
+      let rowCounter = 0;
+      let expandedGroups = new Set();
+      let currentNameFilter = null;   // sidebar click
+      let currentRoleSwitcher = 'all';
+      let currentPage = 1;
+      let pageSize = 20;
+      let filteredGroupsCache = new Map();
+
+      // Filter state (multi-select arrays)
+      let filterNames = [];
+      let filterFreqs = [];
+      let filterVerified = []; // [] = all, ['Verified'], ['Pending'], or both
+      let currentQuickDate = 'upcoming';
+
+var currentUser = localStorage.getItem('erp_logged_user') || '';
+      const currentRole = localStorage.getItem('erp_logged_role') || 'Delegatee';
+
+if (currentRole.toLowerCase() === 'delegatee' || currentRole.toLowerCase() === 'user') {
+  const bulkAddBtn = document.getElementById('openBulkModalBtn');
+  if (bulkAddBtn) bulkAddBtn.style.display = 'none'; // Hides the Bulk Add button
+}
+
+  function parseDateTimeString(str) {
+    if (!str) return null;
+    let d = new Date(str);
+    if (!isNaN(d.getTime())) return d;
+    
+    try {
+      const parts = String(str).trim().split(/\s+/);
+      if (parts.length >= 3) {
+        const day = parseInt(parts[0]);
+        const monthStr = parts[1];
+        const yearStr = parts[2];
+        
+        const monthNames = {
+          jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
+          jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11
+        };
+        const month = monthNames[monthStr.toLowerCase().substring(0, 3)];
+        if (month === undefined) return null;
+        let year = parseInt(yearStr);
+        if (year < 100) year += 2000;
+        
+        let hrs = 0, mins = 0, secs = 0;
+        if (parts[3]) {
+          const timeParts = parts[3].split(':');
+          hrs = parseInt(timeParts[0] || 0);
+          mins = parseInt(timeParts[1] || 0);
+          secs = parseInt(timeParts[2] || 0);
+        }
+        return new Date(year, month, day, hrs, mins, secs);
+      }
+    } catch (e) {
+      return null;
+    }
+    return null;
+  }
+
+  function getLocalISODate(d) {
+    if (!d || isNaN(d.getTime())) return '';
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+      // ── Helpers ────────────────────────────────────────────────────────────
+      function getMinDate() { return new Date().toISOString().split('T')[0]; }
+      function showToast(msg, icon = 'success') {
+        Swal.fire({ toast: true, position: 'top-end', icon, title: msg, showConfirmButton: false, timer: 2200, timerProgressBar: true });
+      }
+      function escapeHtml(s) {
+        return s ? String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])) : '';
+      }
+      function fmtDate(d) {
+        return d ? String(d) : '';
+      }
+      function formatUiDate(dateStr) {
+        if (!dateStr) return '';
+        const parts = String(dateStr).split('-');
+        if (parts.length !== 3) return dateStr;
+        const year = parts[0].substring(2); // '26'
+        const monthIdx = parseInt(parts[1], 10) - 1;
+        const day = parseInt(parts[2], 10);
+        const monthsShort = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const monthName = monthsShort[monthIdx] || '';
+        return `${day} ${monthName} ${year}`;
+      }
+      function getUpcomingDayDate(dayOfWeek) {
+        const today = new Date();
+        const result = new Date(today);
+        const currentDay = today.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+        let daysToAdd = (dayOfWeek - currentDay + 7) % 7;
+        result.setDate(today.getDate() + daysToAdd);
+        return result.toISOString().split('T')[0];
+      }
+
+     function initRoleSwitcher() {
+        const container = document.getElementById('roleSwitcherContainer');
+        if (!container) return;
+        if (currentRole === 'Delegatee') {
+          container.classList.add('hidden');
+          currentRoleSwitcher = 'tome';
+          return;
+        }
+        
+        // ADDED ADMIN & PC ROLES: Grants them the "All" tab view
+        let options = (currentRole === 'Delegator' || currentRole === 'Admin' || currentRole === 'PC')
+    ? [{label:'All',val:'all'},{label:'By Me',val:'byme'},{label:'To Me',val:'tome'}]
+    : [{label:'By Me',val:'byme'},{label:'To Me',val:'tome'}];
+        currentRoleSwitcher = options[0].val;
+        container.classList.remove('hidden');
+        container.innerHTML = `<div class="flex bg-gray-100 rounded-full p-0.5 border border-gray-200 shadow-inner">
+          ${options.map((o,i)=>`<button class="role-btn px-4 py-1.5 rounded-full text-xs font-semibold transition-all duration-200 ${i===0?'bg-white text-blue-600 shadow':'text-gray-500 hover:text-gray-700'}" data-val="${o.val}">${o.label}</button>`).join('')}
+        </div>`;
+        container.querySelectorAll('.role-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            container.querySelectorAll('.role-btn').forEach(b => { b.classList.remove('bg-white','text-blue-600','shadow'); b.classList.add('text-gray-500'); });
+            btn.classList.add('bg-white','text-blue-600','shadow'); btn.classList.remove('text-gray-500');
+            currentRoleSwitcher = btn.getAttribute('data-val');
+            currentPage = 1;
+            applyFiltersAndRender();
+          });
+        });
+      }
+
+      function applyRoleFilter(data) {
+        // Ensure data is a safe array
+        const safeData = Array.isArray(data) ? data : [];
+        const normUser = (currentUser || '').trim().toLowerCase();
+        
+        return safeData.filter(r => {
+          // Row details check
+          const isVerifier = (r['Verified by'] || '').trim().toLowerCase() === normUser;
+          const isDoer = (r['Name'] || '').trim().toLowerCase() === normUser;
+          
+          // Agar aage chal kar Checklist mein bhi Sub-Monitoring add hota hai, toh ye automatically kaam karega
+          const isSubMonitor = (r['Sub Monitoring'] || '').trim().toLowerCase() === normUser;
+
+          // 1. Agar normal user / doer hai, toh sirf wahi tasks dikhenge jisme wo Doer, Verifier, ya Monitor hai
+          if (currentRole === 'Delegatee' || currentRole === 'User') {
+            return isDoer || isVerifier || isSubMonitor;
+          }
+
+          // 2. Agar Manager / Admin / PC hai (Jinke paas tabs hote hain)
+          if (currentRoleSwitcher === 'all') {
+            return true; // Sab dikhega
+          }
+          if (currentRoleSwitcher === 'byme') {
+            return isVerifier || isSubMonitor; // Jo usne verify/monitor karne hain
+          }
+          if (currentRoleSwitcher === 'tome') {
+            return isDoer || isSubMonitor || isVerifier; // Jo usko khud karne hain
+          }
+
+          return false;
+        });
+      }
+
+      // ── Data Loading ───────────────────────────────────────────────────────
+      function loadUsers() {
+        google.script.run.withSuccessHandler(users => {
+          usersList = users;
+          allNames = users.map(u => u.name);
+          buildNameCheckboxes(allNames);
+          
+          // --- FIX: If the Bulk Modal was opened too fast, this auto-fills the empty dropdowns when data arrives ---
+          document.querySelectorAll('.bulk-name').forEach(select => {
+            select.innerHTML = `<option value="">Select assignee...</option>` + 
+                               allNames.map(n => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join('');
+          });
+          document.querySelectorAll('.bulk-verified').forEach(select => {
+            select.innerHTML = `<option value="">Select verifier...</option>` + 
+                               allNames.map(n => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join('');
+          });
+          
+        }).getUsersWithEmail();
+      }
+
+      function loadChecklistData() {
+        google.script.run
+          .withSuccessHandler(data => {
+            // Guarantee checklistData is an array
+            checklistData = Array.isArray(data) ? data : [];
+            updateSummarySidebar();
+            applyFiltersAndRender();
+          })
+          .withFailureHandler(err => {
+            console.error("Checklist Data Error:", err);
+            checklistData = [];
+            updateSummarySidebar();
+            applyFiltersAndRender();
+            showToast("Failed to load checklist data", "error");
+          })
+          .getChecklistData();
+      }
+
+      // ── Name checkbox list builder ─────────────────────────────────────────
+      function buildNameCheckboxes(names) {
+        const container = document.getElementById('nameCheckboxList');
+        if (!container) return;
+        // sync filterNames from currently checked boxes BEFORE rebuilding
+        container.querySelectorAll('.name-cb').forEach(cb => {
+          if (cb.checked && !filterNames.includes(cb.value)) filterNames.push(cb.value);
+          else if (!cb.checked) filterNames = filterNames.filter(n => n !== cb.value);
+        });
+        const query = (document.getElementById('searchName')?.value || '').toLowerCase();
+        const filtered = names.filter(n => n.toLowerCase().includes(query));
+        if (filtered.length === 0) {
+          container.innerHTML = '<p class="text-xs text-gray-400 p-3 text-center">No matches</p>';
+          return;
+        }
+        container.innerHTML = filtered.map(n => `
+          <label class="flex items-center gap-2.5 px-3 py-2 hover:bg-white cursor-pointer transition">
+            <input type="checkbox" class="name-cb accent-blue-600 w-3.5 h-3.5" value="${escapeHtml(n)}" ${filterNames.includes(n)?'checked':''}>
+            <span class="text-sm text-gray-700">${escapeHtml(n)}</span>
+          </label>`).join('');
+      }
+
+      document.getElementById('searchName')?.addEventListener('input', () => buildNameCheckboxes(allNames));
+
+      // ── Sidebar ────────────────────────────────────────────────────────────
+    function updateSummarySidebar() {
+        let visible = applyRoleFilter(checklistData);
+        // Safety check to prevent "not iterable" error
+        if (!Array.isArray(visible)) visible = [];
+        
+        const summary = new Map();
+        for (let row of visible) {
+          const name = row.Name; if (!name) continue;
+          if (!summary.has(name)) summary.set(name, { groups: new Set(), tasks: 0 });
+          summary.get(name).groups.add(row['Group ID']);
+          summary.get(name).tasks++;
+        }
+        
+        const container = document.getElementById('summaryList');
+        if (!container) return;
+        if (summary.size === 0) { 
+          container.innerHTML = '<div class="p-5 text-center text-gray-400 text-sm">No data</div>'; 
+          return; 
+        }
+        
+        container.innerHTML = [...summary.entries()].map(([name, d]) => {
+          const active = currentNameFilter === name;
+          return `<div class="px-4 py-3 cursor-pointer transition-all duration-150 border-l-4 ${active?'bg-blue-50 border-blue-500':'border-transparent hover:bg-gray-50'}" data-name="${escapeHtml(name)}">
+            <div class="font-semibold text-gray-800 text-sm">${escapeHtml(name)}</div>
+            <div class="text-xs text-gray-400 mt-0.5">${d.groups.size} group(s) · ${d.tasks} task(s)</div>
+          </div>`;
+        }).join('');
+        
+        container.querySelectorAll('[data-name]').forEach(el => {
+          el.addEventListener('click', () => {
+            const name = el.getAttribute('data-name');
+            currentNameFilter = currentNameFilter === name ? null : name;
+            currentPage = 1;
+            updateSummarySidebar();
+            applyFiltersAndRender();
+          });
+        });
+      }
+      // ── Filter badge counter ───────────────────────────────────────────────
+      function updateFilterBadge() {
+        const total = filterNames.length + filterFreqs.length + filterVerified.length;
+        const badge = document.getElementById('filterBadge');
+        if (!badge) return;
+        if (total > 0) { badge.textContent = total; badge.classList.remove('hidden'); }
+        else badge.classList.add('hidden');
+      }
+
+      // ── Read checkboxes from panel ─────────────────────────────────────────
+      function readFilterPanel() {
+        filterNames    = [...document.querySelectorAll('.name-cb:checked')].map(cb => cb.value);
+        filterFreqs    = [...document.querySelectorAll('.freq-cb:checked')].map(cb => cb.value);
+        // verified now holds actual verifier name strings (not 'Verified'/'Pending')
+        filterVerified = [...document.querySelectorAll('.verified-cb:checked')].map(cb => cb.value);
+      }
+
+      // ── Apply all filters ──────────────────────────────────────────────────
+    function applyFiltersAndRender() {
+  let data = applyRoleFilter([...checklistData]);
+
+  // Sidebar filter
+  if (currentNameFilter) {
+    data = data.filter(r => r.Name === currentNameFilter);
+  } else if (filterNames.length) {
+    data = data.filter(r => filterNames.includes(r.Name));
+  }
+
+  if (filterFreqs.length) data = data.filter(r => filterFreqs.includes(r.Frequency));
+  if (filterVerified.length) data = data.filter(r => filterVerified.includes((r['Verified by'] || '').trim()));
+
+  const fromDate = document.getElementById('filterFromDate').value;
+  const toDate = document.getElementById('filterToDate').value;
+  
+  const todayLocal = new Date();
+  const todayStr = `${todayLocal.getFullYear()}-${String(todayLocal.getMonth() + 1).padStart(2, '0')}-${String(todayLocal.getDate()).padStart(2, '0')}`;
+
+  
+  if ((fromDate && fromDate > todayStr) || (toDate && toDate > todayStr)) {
+      showToast("Future dates cannot be selected!", "error");
+      return; 
+  }
+
+  if (fromDate || toDate) {
+    data = data.filter(r => {
+      if (!r['Due Date']) return false;
+      const d = parseDateTimeString(r['Due Date']); // parse raw string safely
+      if (!d) return false;
+      
+      const dateStr = getLocalISODate(d); // get timezone-safe local date string
+      
+      let match = true;
+      if (fromDate) match = match && (dateStr >= fromDate);
+      if (toDate) match = match && (dateStr <= toDate);
+      return match;
+    });
+  } else if (currentQuickDate === 'upcoming') {
+    // Keep your existing "Today & Tomorrow" logic here, but make it timezone safe!
+    const today = new Date(); today.setHours(0,0,0,0);
+    const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1); tomorrow.setHours(23,59,59,999);
+    data = data.filter(r => {
+        if (!r['Due Date']) return false;
+        const d = parseDateTimeString(r['Due Date']);
+        if (!d) return false;
+        return d.getTime() >= today.getTime() && d.getTime() <= tomorrow.getTime();
+    });
+  }
+  // Group and render...
+  const groups = new Map();
+  data.forEach(row => {
+    const gid = row['Group ID'];
+    if (gid) { if (!groups.has(gid)) groups.set(gid, []); groups.get(gid).push(row); }
+  });
+  filteredGroupsCache = groups;
+  renderGroupedTable(groups);
+}
+      // ── Table Rendering ────────────────────────────────────────────────────
+      function renderGroupedTable(groupsMap) {
+        const tbody = document.getElementById('checklistTableBody');
+        const pgBar = document.getElementById('paginationBar');
+        if (!tbody) return;
+        if (groupsMap.size === 0) {
+          tbody.innerHTML = `<tr><td colspan="10" class="text-center py-16">
+            <div class="flex flex-col items-center gap-2 text-gray-400">
+              <i class="fas fa-inbox text-3xl"></i><span class="text-sm">No tasks found</span>
+            </div></td></tr>`;
+          pgBar.classList.add('hidden'); return;
+        }
+        const groupKeys = [...groupsMap.keys()];
+        const totalGroups = groupKeys.length;
+        const totalPages = Math.max(1, Math.ceil(totalGroups / pageSize));
+        if (currentPage > totalPages) currentPage = totalPages;
+        const pageKeys = groupKeys.slice((currentPage-1)*pageSize, currentPage*pageSize);
+
+        const freqColors = {Daily:'bg-blue-100 text-blue-700',Weekly:'bg-purple-100 text-purple-700',Monthly:'bg-indigo-100 text-indigo-700',Quarterly:'bg-teal-100 text-teal-700',Yearly:'bg-rose-100 text-rose-700'};
+        tbody.innerHTML = '';
+
+        for (let groupId of pageKeys) {
+          const rows = groupsMap.get(groupId);
+          const first = rows[0];
+          const count = rows.length;
+          const expanded = expandedGroups.has(groupId);
+          const isVerified = first['Verified by']?.trim();
+          const isDue = first['Due Date'] && new Date(first['Due Date']) < new Date();
+          const freqCls = freqColors[first.Frequency] || 'bg-gray-100 text-gray-600';
+          const avatarLetter = first.Name?.charAt(0)?.toUpperCase() || '?';
+
+          const parent = document.createElement('tr');
+          parent.className = 'hover:bg-blue-50/30 transition-colors duration-100 cursor-pointer';
+          parent.setAttribute('data-group-id', groupId);
+          parent.innerHTML = `
+            <td class="px-4 py-3.5 text-center">
+              <button class="toggleGroupBtn w-6 h-6 flex items-center justify-center rounded-full hover:bg-blue-100 text-gray-400 hover:text-blue-600 transition">
+                <i class="fas ${expanded?'fa-chevron-down':'fa-chevron-right'} text-xs"></i>
+              </button>
+            </td>
+            <td class="px-4 py-3.5 text-xs text-gray-500 whitespace-nowrap">${fmtDate(first['Created At'])}</td>
+            <td class="px-4 py-3.5">
+              <div class="flex items-center gap-2">
+                <div class="w-7 h-7 rounded-full bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center text-white text-xs font-bold shrink-0">${avatarLetter}</div>
+                <span class="text-sm font-medium text-gray-800 whitespace-nowrap">${escapeHtml(first.Name)}</span>
+              </div>
+            </td>
+            <td class="px-4 py-3.5">
+              <span class="inline-block bg-blue-50 text-blue-700 border border-blue-100 px-2 py-0.5 rounded-full text-xs font-semibold">${escapeHtml(groupId)}</span>
+              <span class="text-gray-400 text-xs ml-1">(${count})</span>
+              <div class="text-xs text-gray-400 mt-0.5 font-mono">${escapeHtml(first['Task ID'])}</div>
+            </td>
+           <td class="px-4 py-3.5 text-sm text-gray-700 min-w-[250px] max-w-[400px]">
+          <div class="break-words whitespace-normal">${escapeHtml(first['Task Description'])}</div>
+        </td>
+            <td class="px-4 py-3.5">
+              <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold ${freqCls}">${escapeHtml(first.Frequency||'—')}</span>
+            </td>
+            <td class="px-4 py-3.5 text-xs whitespace-nowrap ${isDue&&!isVerified?'text-red-600 font-semibold':'text-gray-600'}">
+              ${isDue&&!isVerified?'<i class="fas fa-exclamation-circle mr-1"></i>':''}${formatUiDate(escapeHtml(first['Due Date']))}
+            </td>
+            <td class="px-4 py-3.5 text-center">
+              ${first['Proof is Required']==='Yes'
+                ?'<span class="inline-flex items-center gap-1 bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full text-xs font-medium"><i class="fas fa-paperclip text-xs"></i> Yes</span>'
+                :'<span class="text-gray-300 text-xs">—</span>'}
+            </td>
+            <td class="px-4 py-3.5">
+              ${isVerified
+                ?`<span class="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full text-xs"><i class="fas fa-check text-xs"></i> ${escapeHtml(first['Verified by'])}</span>`
+                :'<span class="inline-flex items-center gap-1 bg-orange-50 text-orange-600 border border-orange-200 px-2 py-0.5 rounded-full text-xs"><i class="fas fa-clock text-xs"></i> Pending</span>'}
+            </td>
+            <td class="px-4 py-3.5 text-center">
+              <button class="deleteGroupBtn w-7 h-7 flex items-center justify-center rounded-full hover:bg-red-100 text-gray-300 hover:text-red-500 transition mx-auto"
+                data-group-id="${escapeHtml(groupId)}" data-count="${count}">
+                <i class="fas fa-trash-alt text-xs"></i>
+              </button>
+            </td>`;
+          tbody.appendChild(parent);
+
+          if (expanded && rows.length > 1) {
+            for (let i = 1; i < rows.length; i++) {
+              const r = rows[i];
+              const child = document.createElement('tr');
+              child.className = 'bg-gradient-to-r from-yellow-50/60 to-amber-50/30';
+              child.innerHTML = `
+                <td class="px-4 py-2.5 pl-10 text-gray-300"><i class="fas fa-corner-down-right text-xs"></i></td>
+                <td class="px-4 py-2.5 text-xs text-gray-400">${fmtDate(r['Created At'])}</td>
+                <td></td>
+                <td class="px-4 py-2.5 text-xs font-mono text-gray-500">${escapeHtml(r['Task ID'])}</td>
+                <td class="px-4 py-2.5 text-xs text-gray-600 break-words whitespace-normal max-w-[400px]">${escapeHtml(r['Task Description'])}</td>
+                <td class="px-4 py-2.5 text-xs text-gray-500">${escapeHtml(r.Frequency)}</td>
+                <td class="px-4 py-2.5 text-xs text-gray-500">${formatUiDate(escapeHtml(r['Due Date']))}</td>
+                <td class="px-4 py-2.5 text-xs text-center">${r['Proof is Required']==='Yes'?'<i class="fas fa-check text-amber-500"></i>':'—'}</td>
+                <td class="px-4 py-2.5 text-xs text-gray-500">${escapeHtml(r['Verified by'])}</td>
+                <td></td>`;
+              tbody.appendChild(child);
+            }
+          }
+        }
+
+        // Attach row events
+        tbody.querySelectorAll('.toggleGroupBtn').forEach(btn => {
+          btn.addEventListener('click', e => {
+            e.stopPropagation();
+            const gid = btn.closest('tr').getAttribute('data-group-id');
+            expandedGroups.has(gid) ? expandedGroups.delete(gid) : expandedGroups.add(gid);
+            renderGroupedTable(filteredGroupsCache);
+          });
+        });
+        tbody.querySelectorAll('.deleteGroupBtn').forEach(btn => {
+          btn.addEventListener('click', e => {
+            e.stopPropagation();
+            const gid = btn.getAttribute('data-group-id');
+            const cnt = btn.getAttribute('data-count');
+            Swal.fire({ title:'Delete this group?', text:`This will delete ${cnt} task(s) permanently.`,
+              icon:'warning', showCancelButton:true, confirmButtonColor:'#ef4444',
+              confirmButtonText:'Yes, delete' })
+            .then(res => {
+              if (res.isConfirmed)
+                google.script.run.withSuccessHandler(r => {
+                  if (r.success) { showToast(r.message); loadChecklistData(); }
+                  else showToast(r.message,'error');
+                }).deleteChecklistEntryByGroupId(gid);
+            });
+          });
+        });
+
+        renderPagination(totalGroups, totalPages);
+      }
+
+      // ── Pagination ─────────────────────────────────────────────────────────
+      function renderPagination(totalGroups, totalPages) {
+        const pgBar = document.getElementById('paginationBar');
+        if (totalPages <= 1) { pgBar.classList.add('hidden'); return; }
+        pgBar.classList.remove('hidden');
+        const start = (currentPage-1)*pageSize+1;
+        const end = Math.min(currentPage*pageSize, totalGroups);
+        document.getElementById('paginationInfo').textContent = `Showing ${start}–${end} of ${totalGroups} groups`;
+
+        const pgNumbers = document.getElementById('pgNumbers');
+        pgNumbers.innerHTML = '';
+        let startPg = Math.max(1, currentPage-2), endPg = Math.min(totalPages, startPg+4);
+        if (endPg-startPg < 4) startPg = Math.max(1, endPg-4);
+        for (let p = startPg; p <= endPg; p++) {
+          const btn = document.createElement('button');
+          btn.textContent = p;
+          btn.className = `w-7 h-7 rounded-lg text-xs font-semibold border transition ${p===currentPage?'bg-blue-600 text-white border-blue-600 shadow':'bg-white text-gray-600 border-gray-200 hover:bg-blue-50 hover:border-blue-300'}`;
+          btn.addEventListener('click', () => { currentPage = p; renderGroupedTable(filteredGroupsCache); });
+          pgNumbers.appendChild(btn);
+        }
+        const pgFirst = document.getElementById('pgFirst'), pgPrev = document.getElementById('pgPrev');
+        const pgNext = document.getElementById('pgNext'), pgLast = document.getElementById('pgLast');
+        pgFirst.disabled = pgPrev.disabled = currentPage === 1;
+        pgNext.disabled = pgLast.disabled = currentPage === totalPages;
+        pgFirst.onclick = () => { currentPage=1; renderGroupedTable(filteredGroupsCache); };
+        pgPrev.onclick  = () => { if(currentPage>1){currentPage--; renderGroupedTable(filteredGroupsCache);} };
+        pgNext.onclick  = () => { if(currentPage<totalPages){currentPage++; renderGroupedTable(filteredGroupsCache);} };
+        pgLast.onclick  = () => { currentPage=totalPages; renderGroupedTable(filteredGroupsCache); };
+      }
+
+      // ── Export CSV ─────────────────────────────────────────────────────────
+      function exportToCSV() {
+        if (!checklistData.length) { showToast('No data to export','warning'); return; }
+        const cols = ['Created At','Name','Group ID','Task ID','Task Description','Frequency','Due Date','Proof is Required','Verified by'];
+        const rows = [cols.join(',')];
+        checklistData.forEach(r => {
+          rows.push(cols.map(c => {
+            const v = r[c] != null ? String(r[c]) : '';
+            return v.includes(',') || v.includes('"') || v.includes('\n') ? `"${v.replace(/"/g,'""')}"` : v;
+          }).join(','));
+        });
+        const blob = new Blob([rows.join('\n')], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = `checklist_export_${new Date().toISOString().slice(0,10)}.csv`;
+        a.click(); URL.revokeObjectURL(url);
+        showToast('Exported successfully');
+      }
+
+      // ── Bulk Modal ─────────────────────────────────────────────────────────
+      function addBulkRow() {
+        const tbody = document.getElementById('bulkTableBody');
+        if (!tbody) return;
+        const rowId = 'bulk_' + Date.now() + '_' + rowCounter++;
+        
+        // Row 1: Inputs and controls
+        const trInputs = document.createElement('tr');
+        trInputs.className = 'tr-inputs divide-x divide-gray-100 border-t border-gray-100';
+        trInputs.setAttribute('data-row-id', rowId);
+        trInputs.innerHTML = `
+          <td class="p-2 align-top">
+           <select class="bulk-name w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:ring-1 focus:ring-blue-300 outline-none">
+  <option value="">Select assignee...</option>
+  ${allNames.map(n=>`<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join('')}
+</select>
+          </td>
+          <td class="p-2 align-top">
+            <select class="bulk-freq w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:ring-1 focus:ring-blue-300 outline-none">
+              <option value="">Select</option>
+              <option>Daily</option><option>Weekly</option><option>Monthly</option><option>Quarterly</option><option>Yearly</option>
+            </select>
+          </td>
+          <td class="p-2 align-top">
+            <div class="weekly-badges flex gap-1.5 mb-2 hidden">
+              <button type="button" class="w-6 h-6 rounded-full text-[10px] font-bold border transition flex items-center justify-center weekday-btn" data-day="1" title="Monday">M</button>
+              <button type="button" class="w-6 h-6 rounded-full text-[10px] font-bold border transition flex items-center justify-center weekday-btn" data-day="2" title="Tuesday">T</button>
+              <button type="button" class="w-6 h-6 rounded-full text-[10px] font-bold border transition flex items-center justify-center weekday-btn" data-day="3" title="Wednesday">W</button>
+              <button type="button" class="w-6 h-6 rounded-full text-[10px] font-bold border transition flex items-center justify-center weekday-btn" data-day="4" title="Thursday">T</button>
+              <button type="button" class="w-6 h-6 rounded-full text-[10px] font-bold border transition flex items-center justify-center weekday-btn" data-day="5" title="Friday">F</button>
+              <button type="button" class="w-6 h-6 rounded-full text-[10px] font-bold border transition flex items-center justify-center weekday-btn" data-day="6" title="Saturday">S</button>
+            </div>
+            <button type="button" class="bulk-date-trigger w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm flex items-center justify-between hover:bg-gray-50 focus:ring-1 focus:ring-blue-300 outline-none text-left bg-white text-gray-400 transition duration-150" style="min-width:140px">
+              <span class="truncate">Select Date(s)</span>
+              <i class="far fa-calendar-alt text-blue-500 shrink-0 ml-1"></i>
+            </button>
+            <div class="selectedDates flex flex-wrap gap-1 mt-1.5"></div>
+          </td>
+          <td class="p-2 align-top">
+            <select class="bulk-proof w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:ring-1 focus:ring-blue-300 outline-none">
+              <option value="No">No</option><option value="Yes">Yes</option>
+            </select>
+          </td>
+          <td class="p-2 align-top">
+            <select class="bulk-verified w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:ring-1 focus:ring-blue-300 outline-none">
+  <option value="">Select verifier...</option>
+  ${allNames.map(n=>`<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join('')}
+</select>
+          </td>
+          <td class="p-2 text-center align-top">
+            <button type="button" class="removeRowBtn w-7 h-7 flex items-center justify-center rounded-lg hover:bg-red-100 text-gray-300 hover:text-red-500 transition mx-auto mt-1">
+              <i class="fas fa-trash-alt text-xs"></i>
+            </button>
+          </td>`;
+        
+        // Row 2: Full-width Task Description
+        const trDesc = document.createElement('tr');
+        trDesc.className = 'tr-description border-b border-gray-100 bg-slate-50/30';
+        trDesc.setAttribute('data-row-id', rowId);
+        trDesc.innerHTML = `
+          <td colspan="6" class="p-2.5">
+            <div class="flex items-center gap-2">
+              <span class="text-xs font-semibold text-gray-500 shrink-0 ml-1 flex items-center gap-1"><i class="far fa-file-alt text-orange-400"></i> Description * :</span>
+              <textarea class="bulk-desc w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:ring-1 focus:ring-blue-300 outline-none resize-y bg-white" rows="1" placeholder="Type lengthy task description here…"></textarea>
+            </div>
+          </td>`;
+
+        tbody.appendChild(trInputs);
+        tbody.appendChild(trDesc);
+
+        trInputs.querySelector('.bulk-name').addEventListener('change', function () {
+          const user = usersList.find(u => u.name === this.value);
+          trInputs.setAttribute('data-email', user ? user.email : '');
+        });
+
+        let selectedDates = [];
+        const dateTrigger = trInputs.querySelector('.bulk-date-trigger');
+        const datesContainer = trInputs.querySelector('.selectedDates');
+        const freqSelect = trInputs.querySelector('.bulk-freq');
+        const weeklyBadges = trInputs.querySelector('.weekly-badges');
+
+        const updateBadges = () => {
+          datesContainer.innerHTML = '';
+          selectedDates.sort((a, b) => new Date(a) - new Date(b));
+          selectedDates.forEach(d => {
+            const badge = document.createElement('span');
+            badge.className = 'inline-flex items-center gap-1 bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded-full text-xs font-medium';
+            badge.innerHTML = `${formatUiDate(d)} <button type="button" class="remove-date hover:text-red-500 font-bold ml-0.5" data-date="${d}">✕</button>`;
+            datesContainer.appendChild(badge);
+          });
+
+          const triggerSpan = dateTrigger.querySelector('span');
+          if (selectedDates.length === 0) {
+            triggerSpan.textContent = 'Select Date(s)';
+            triggerSpan.className = 'text-gray-400 truncate';
+          } else if (selectedDates.length === 1) {
+            triggerSpan.textContent = formatUiDate(selectedDates[0]);
+            triggerSpan.className = 'text-gray-700 truncate font-medium';
+          } else {
+            triggerSpan.textContent = `${selectedDates.length} dates selected`;
+            triggerSpan.className = 'text-gray-700 truncate font-semibold';
+          }
+
+          datesContainer.querySelectorAll('.remove-date').forEach(b => {
+            b.addEventListener('click', (e) => { 
+              e.stopPropagation();
+              selectedDates = selectedDates.filter(dd => dd !== b.getAttribute('data-date')); 
+              updateBadges(); 
+            });
+          });
+
+          // Highlight matching active weekday badges if Weekly
+          if (freqSelect.value === 'Weekly') {
+            trInputs.querySelectorAll('.weekday-btn').forEach(btn => {
+              const day = parseInt(btn.getAttribute('data-day'), 10);
+              const dateStr = getUpcomingDayDate(day);
+              if (selectedDates.includes(dateStr)) {
+                btn.className = 'w-6 h-6 rounded-full text-[10px] font-bold border transition flex items-center justify-center weekday-btn bg-blue-600 border-blue-600 text-white shadow-sm';
+              } else {
+                btn.className = 'w-6 h-6 rounded-full text-[10px] font-bold border transition flex items-center justify-center weekday-btn bg-white border-gray-200 text-gray-500 hover:bg-gray-50 hover:border-gray-300';
+              }
+            });
+          }
+        };
+
+        freqSelect.addEventListener('change', () => {
+          if (freqSelect.value === 'Weekly') {
+            weeklyBadges.classList.remove('hidden');
+          } else {
+            weeklyBadges.classList.add('hidden');
+          }
+
+          if (freqSelect.value === 'Daily' && selectedDates.length > 1) {
+            selectedDates = [selectedDates[0]];
+          }
+          updateBadges();
+        });
+
+        trInputs.querySelectorAll('.weekday-btn').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const day = parseInt(btn.getAttribute('data-day'), 10);
+            const dateStr = getUpcomingDayDate(day);
+            if (selectedDates.includes(dateStr)) {
+              selectedDates = selectedDates.filter(d => d !== dateStr);
+            } else {
+              selectedDates.push(dateStr);
+            }
+            updateBadges();
+          });
+        });
+
+        dateTrigger.addEventListener('click', (e) => {
+          e.stopPropagation();
+          openCalendar(trInputs, dateTrigger, selectedDates, freqSelect.value, (newDates) => {
+            selectedDates = newDates;
+            updateBadges();
+          });
+        });
+
+        trInputs.querySelector('.removeRowBtn').addEventListener('click', () => {
+          trInputs.remove();
+          trDesc.remove();
+        });
+        
+        trInputs.getDates = () => selectedDates;
+      }
+
+    function collectBulkRows() {
+        const rows = [];
+        document.querySelectorAll('#bulkTableBody tr.tr-inputs').forEach(trInputs => {
+          const rowId = trInputs.getAttribute('data-row-id');
+          const trDesc = document.querySelector(`#bulkTableBody tr.tr-description[data-row-id="${rowId}"]`);
+          
+          const name = trInputs.querySelector('.bulk-name')?.value.trim();
+          const desc = trDesc?.querySelector('.bulk-desc')?.value.trim();
+          if (!name || !desc) return;
+          
+          const email = trInputs.getAttribute('data-email') || '';
+          const frequency = trInputs.querySelector('.bulk-freq')?.value || '';
+          const proof = trInputs.querySelector('.bulk-proof')?.value || 'No';
+          const verifiedBy = trInputs.querySelector('.bulk-verified')?.value || '';
+          
+          let dates = trInputs.getDates ? trInputs.getDates() : [];
+          if (!dates.length) return;
+
+          // Use the FIRST selected date as the starting point
+          const startDate = new Date(dates[0]);
+
+          if (frequency === 'Daily') {
+            // Generate 365 days (1 complete year)
+            for (let i = 0; i < 365; i++) {
+              let d = new Date(startDate);
+              d.setDate(d.getDate() + i);
+              rows.push({ name, email, taskDescription: desc, frequency, dueDate: d.toISOString().split('T')[0], proofRequired: proof, verifiedBy });
+            }
+          } 
+          else if (frequency === 'Weekly') {
+            // Generate 52 weeks (1 complete year)
+            for (let i = 0; i < 52; i++) {
+              let d = new Date(startDate);
+              d.setDate(d.getDate() + (i * 7));
+              rows.push({ name, email, taskDescription: desc, frequency, dueDate: d.toISOString().split('T')[0], proofRequired: proof, verifiedBy });
+            }
+          } 
+          else if (frequency === 'Monthly') {
+            // Generate 12 months (1 complete year)
+            for (let i = 0; i < 12; i++) {
+              let d = new Date(startDate);
+              let expectedMonth = (d.getMonth() + i) % 12;
+              d.setMonth(d.getMonth() + i);
+              
+              // Handle end-of-month edge cases (e.g., Jan 31 -> Feb 28 -> Mar 31)
+              if (d.getMonth() !== expectedMonth && d.getMonth() !== (expectedMonth + 12) % 12) {
+                d.setDate(0); 
+              }
+              rows.push({ name, email, taskDescription: desc, frequency, dueDate: d.toISOString().split('T')[0], proofRequired: proof, verifiedBy });
+            }
+          } 
+          else if (frequency === 'Quarterly') {
+            // Generate 4 quarters (1 complete year)
+            for (let i = 0; i < 4; i++) {
+              let d = new Date(startDate);
+              let expectedMonth = (d.getMonth() + (i * 3)) % 12;
+              d.setMonth(d.getMonth() + (i * 3));
+              
+              if (d.getMonth() !== expectedMonth && d.getMonth() !== (expectedMonth + 12) % 12) {
+                d.setDate(0);
+              }
+              rows.push({ name, email, taskDescription: desc, frequency, dueDate: d.toISOString().split('T')[0], proofRequired: proof, verifiedBy });
+            }
+          } 
+          else {
+            // If frequency is 'Yearly' or none, just use the dates manually clicked
+            dates.forEach(dueDate => rows.push({ name, email, taskDescription: desc, frequency, dueDate, proofRequired: proof, verifiedBy }));
+          }
+        });
+        return rows;
+      }
+
+      function submitBulk() {
+        const rows = collectBulkRows();
+        if (!rows.length) { showToast('Add at least one complete task with due date(s)','warning'); return; }
+        const btn = document.getElementById('submitBulkBtn');
+        btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-pulse mr-2"></i> Saving…';
+        google.script.run
+          .withSuccessHandler(res => {
+            btn.disabled = false; btn.innerHTML = '<i class="fas fa-save mr-2"></i> Submit All';
+            if (res.success) { showToast(res.message); closeBulkModal(); loadChecklistData(); }
+            else showToast(res.message,'error');
+          })
+          .withFailureHandler(err => {
+            btn.disabled = false; btn.innerHTML = '<i class="fas fa-save mr-2"></i> Submit All';
+            showToast(err.message,'error');
+          })
+          .bulkInsertChecklist(rows);
+      }
+
+      // ── Modal helpers ──────────────────────────────────────────────────────
+      function openModal(mid, sid) { document.getElementById(mid).classList.remove('hidden'); setTimeout(()=>document.getElementById(sid).style.transform='translateX(0)',10); }
+      function closeModal(mid, sid) { document.getElementById(sid).style.transform=''; setTimeout(()=>document.getElementById(mid).classList.add('hidden'),300); }
+      // Build verifier checkboxes dynamically from data
+      function buildVerifierCheckboxes() {
+        const container = document.getElementById('verifiedCheckboxList');
+        if (!container) return;
+        const query = (document.getElementById('searchVerifier')?.value || '').toLowerCase();
+        // collect unique non-empty verifier names from data
+        const verifiers = [...new Set(
+          checklistData.map(r => r['Verified by']).filter(v => v && v.trim())
+        )].sort();
+        const filtered = verifiers.filter(v => v.toLowerCase().includes(query));
+        if (!filtered.length) {
+          container.innerHTML = '<p class="text-xs text-gray-400 p-3 text-center">No verifiers found</p>';
+          return;
+        }
+        container.innerHTML = filtered.map(v => `
+          <label class="flex items-center gap-2.5 px-3 py-2 hover:bg-white cursor-pointer transition">
+            <input type="checkbox" class="verified-cb accent-blue-600 w-3.5 h-3.5" value="${escapeHtml(v)}" ${filterVerified.includes(v)?'checked':''}>
+            <span class="text-sm text-gray-700">${escapeHtml(v)}</span>
+          </label>`).join('');
+      }
+
+      document.getElementById('searchVerifier')?.addEventListener('input', buildVerifierCheckboxes);
+
+      function openFilterModal()  { buildNameCheckboxes(allNames); buildVerifierCheckboxes(); openModal('filterModal','filterSlidePanel'); }
+      function closeFilterModal() { closeModal('filterModal','filterSlidePanel'); }
+      function openBulkModal()    { openModal('bulkModal','bulkSlidePanel'); document.getElementById('bulkTableBody').innerHTML=''; for(let i=0;i<2;i++) addBulkRow(); }
+      function closeBulkModal()   { closeModal('bulkModal','bulkSlidePanel'); }
+
+      // ── Clear section helpers ──────────────────────────────────────────────
+      document.querySelectorAll('.clearSection').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const s = btn.getAttribute('data-section');
+          if (s === 'name')     { filterNames = []; buildNameCheckboxes(allNames); }
+          if (s === 'freq')     { filterFreqs = []; document.querySelectorAll('.freq-cb').forEach(cb => cb.checked=false); }
+          if (s === 'verified') { filterVerified = []; buildVerifierCheckboxes(); }
+        });
+      });
+
+      // ── Multi-date Picker Calendar Code ─────────────────────────────────────
+      let calActiveTr = null;
+      let calActiveTrigger = null;
+      let calTempSelectedDates = [];
+      let calCurrentMonth = new Date().getMonth();
+      let calCurrentYear = new Date().getFullYear();
+      let calFrequency = '';
+      let calOnApplyCallback = null;
+
+      function openCalendar(tr, triggerEl, initialDates, frequency, onApplyCallback) {
+        document.querySelectorAll('.bulk-date-trigger').forEach(el => el.classList.remove('active-trigger'));
+        
+        calActiveTr = tr;
+        calActiveTrigger = triggerEl;
+        calActiveTrigger.classList.add('active-trigger');
+        calTempSelectedDates = [...initialDates];
+        calFrequency = frequency || '';
+        calOnApplyCallback = onApplyCallback;
+
+        if (calTempSelectedDates.length > 0) {
+          const firstDate = new Date(calTempSelectedDates[0]);
+          if (!isNaN(firstDate.getTime())) {
+            calCurrentMonth = firstDate.getMonth();
+            calCurrentYear = firstDate.getFullYear();
+          }
+        } else {
+          const today = new Date();
+          calCurrentMonth = today.getMonth();
+          calCurrentYear = today.getFullYear();
+        }
+
+        renderCalendar();
+        
+        const container = document.getElementById('multiDatePickerContainer');
+        if (container) {
+          container.classList.remove('hidden');
+        }
+      }
+
+      function closeCalendar() {
+        const container = document.getElementById('multiDatePickerContainer');
+        if (container) {
+          container.classList.add('hidden');
+        }
+        if (calActiveTrigger) {
+          calActiveTrigger.classList.remove('active-trigger');
+        }
+        calActiveTr = null;
+        calActiveTrigger = null;
+        calOnApplyCallback = null;
+      }
+
+      function renderCalendar() {
+        const container = document.getElementById('multiDatePickerContainer');
+        if (!container) return;
+
+        const titleEl = document.getElementById('calMonthYearTitle');
+        const gridEl = document.getElementById('calDaysGrid');
+        const summaryEl = document.getElementById('calSelectionSummary');
+
+        const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+        titleEl.textContent = `${months[calCurrentMonth]} ${calCurrentYear}`;
+
+        gridEl.innerHTML = '';
+        
+        const firstDayIndex = new Date(calCurrentYear, calCurrentMonth, 1).getDay();
+        const lastDay = new Date(calCurrentYear, calCurrentMonth + 1, 0).getDate();
+        const prevLastDay = new Date(calCurrentYear, calCurrentMonth, 0).getDate();
+
+        for (let i = firstDayIndex; i > 0; i--) {
+          const dayDiv = document.createElement('div');
+          dayDiv.className = 'p-1.5 text-xs text-gray-300 select-none';
+          dayDiv.textContent = prevLastDay - i + 1;
+          gridEl.appendChild(dayDiv);
+        }
+
+        const todayStr = getMinDate();
+        for (let day = 1; day <= lastDay; day++) {
+          const monthStr = String(calCurrentMonth + 1).padStart(2, '0');
+          const dayStr = String(day).padStart(2, '0');
+          const dateStr = `${calCurrentYear}-${monthStr}-${dayStr}`;
+          
+          const isPast = dateStr < todayStr;
+          const isSelected = calTempSelectedDates.includes(dateStr);
+
+          const dayBtn = document.createElement('button');
+          dayBtn.type = 'button';
+          dayBtn.className = 'w-8 h-8 rounded-full text-xs font-semibold flex items-center justify-center transition-all duration-100 ';
+          dayBtn.textContent = day;
+
+          if (isPast) {
+            dayBtn.className += 'text-gray-300 cursor-not-allowed';
+            dayBtn.disabled = true;
+          } else {
+            if (isSelected) {
+              dayBtn.className += 'bg-blue-600 text-white shadow-sm hover:bg-blue-700';
+            } else {
+              dayBtn.className += 'text-gray-700 hover:bg-blue-50';
+            }
+
+            dayBtn.addEventListener('click', (e) => {
+              e.preventDefault();
+              e.stopPropagation(); // Stop click from bubbling up and auto-closing calendar
+              toggleDateSelection(dateStr);
+            });
+          }
+          gridEl.appendChild(dayBtn);
+        }
+
+        summaryEl.textContent = `${calTempSelectedDates.length} selected`;
+      }
+
+      function toggleDateSelection(dateStr) {
+        if (calFrequency === 'Daily') {
+          calTempSelectedDates = [dateStr];
+          applyCalendarSelection(); // Auto apply and close for Daily frequency!
+        } else {
+          if (calTempSelectedDates.includes(dateStr)) {
+            calTempSelectedDates = calTempSelectedDates.filter(d => d !== dateStr);
+          } else {
+            calTempSelectedDates.push(dateStr);
+          }
+          renderCalendar();
+        }
+      }
+
+      function applyCalendarSelection() {
+        if (calOnApplyCallback) {
+          calOnApplyCallback(calTempSelectedDates);
+        }
+        closeCalendar();
+      }
+
+      // Calendar button listeners
+      document.getElementById('calPrevMonth')?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        calCurrentMonth--;
+        if (calCurrentMonth < 0) {
+          calCurrentMonth = 11;
+          calCurrentYear--;
+        }
+        renderCalendar();
+      });
+
+      document.getElementById('calNextMonth')?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        calCurrentMonth++;
+        if (calCurrentMonth > 11) {
+          calCurrentMonth = 0;
+          calCurrentYear++;
+        }
+        renderCalendar();
+      });
+
+      document.getElementById('calClearBtn')?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        calTempSelectedDates = [];
+        renderCalendar();
+      });
+
+      document.getElementById('calOkBtn')?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        applyCalendarSelection();
+      });
+
+      window.addEventListener('click', (e) => {
+        const container = document.getElementById('multiDatePickerContainer');
+        if (!container || container.classList.contains('hidden')) return;
+        const trigger = document.querySelector('.bulk-date-trigger.active-trigger');
+        if (!container.contains(e.target) && (!trigger || !trigger.contains(e.target))) {
+          closeCalendar();
+        }
+      });
+
+      // ── Event wiring ───────────────────────────────────────────────────────
+      document.getElementById('openFilterBtn')?.addEventListener('click', openFilterModal);
+      document.getElementById('closeFilterModal')?.addEventListener('click', closeFilterModal);
+      document.getElementById('filterModal')?.addEventListener('click', e => { if(e.target===e.currentTarget) closeFilterModal(); });
+
+      document.getElementById('applyFiltersBtn')?.addEventListener('click', () => {
+        readFilterPanel();
+        currentNameFilter = null;
+        currentPage = 1;
+        applyFiltersAndRender();
+        closeFilterModal();
+      });
+     document.getElementById('clearAllFiltersBtn')?.addEventListener('click', () => {
+  filterNames = []; filterFreqs = []; filterVerified = [];
+  document.getElementById('filterFromDate').value = '';
+  document.getElementById('filterToDate').value = ''; // Reset dates
+  document.querySelectorAll('.name-cb, .freq-cb, .verified-cb').forEach(cb => cb.checked=false);
+  currentNameFilter = null; currentPage = 1;
+  applyFiltersAndRender();
+  closeFilterModal();
+});
+
+      document.getElementById('exportBtn')?.addEventListener('click', exportToCSV);
+      document.getElementById('openBulkModalBtn')?.addEventListener('click', openBulkModal);
+      document.getElementById('closeBulkModal')?.addEventListener('click', closeBulkModal);
+      document.getElementById('cancelBulkBtn')?.addEventListener('click', closeBulkModal);
+      document.getElementById('bulkModal')?.addEventListener('click', e => { if(e.target===e.currentTarget) closeBulkModal(); });
+      document.getElementById('addRowBtn')?.addEventListener('click', addBulkRow);
+      document.getElementById('submitBulkBtn')?.addEventListener('click', submitBulk);
+      document.getElementById('pgSize')?.addEventListener('change', e => { pageSize=parseInt(e.target.value); currentPage=1; renderGroupedTable(filteredGroupsCache); });
+
+document.getElementById('quickUpcoming')?.addEventListener('click', function() {
+        currentQuickDate = 'upcoming';
+        this.classList.add('bg-white', 'text-blue-600', 'shadow');
+        this.classList.remove('text-gray-500');
+        document.getElementById('quickAllDates').classList.remove('bg-white', 'text-blue-600', 'shadow');
+        document.getElementById('quickAllDates').classList.add('text-gray-500');
+        currentPage = 1; applyFiltersAndRender();
+      });
+
+      document.getElementById('quickAllDates')?.addEventListener('click', function() {
+        currentQuickDate = 'all';
+        this.classList.add('bg-white', 'text-blue-600', 'shadow');
+        this.classList.remove('text-gray-500');
+        document.getElementById('quickUpcoming').classList.remove('bg-white', 'text-blue-600', 'shadow');
+        document.getElementById('quickUpcoming').classList.add('text-gray-500');
+        currentPage = 1; applyFiltersAndRender();
+      });
+      // ── Mobile: collapsible People Summary ─────────────────────────────────
+      document.getElementById('toggleSummaryBtn')?.addEventListener('click', () => {
+        if (window.innerWidth >= 1024) return;
+        const list = document.getElementById('summaryList');
+        const icon = document.getElementById('toggleSummaryIcon');
+        const isHidden = list.classList.toggle('hidden');
+        if (icon) icon.style.transform = isHidden ? '' : 'rotate(180deg)';
+      });
+
+      // ── Init ───────────────────────────────────────────────────────────────
+      initRoleSwitcher();
+      loadUsers();
+      loadChecklistData();
+       const chkMaxTodayStr = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}`;
+  const chkFromInput = document.getElementById('filterFromDate');
+  const chkToInput = document.getElementById('filterToDate');
+  if (chkFromInput) chkFromInput.max = chkMaxTodayStr;
+  if (chkToInput) chkToInput.max = chkMaxTodayStr;
+    </script>
+  </body>
+</html>

@@ -1,0 +1,2196 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <base target="_top">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+
+        .task-card.selected {
+            border-color: #6366f1 !important;
+            box-shadow: 0 0 0 2px #6366f140, 0 4px 16px #6366f120 !important;
+            background: linear-gradient(135deg, #f0f0ff 0%, #ffffff 100%) !important;
+        }
+
+        .task-card.selected .card-select-cb {
+            accent-color: #6366f1;
+        }
+
+        /* Floating action overlay */
+        #actionOverlay {
+            position: fixed;
+            bottom: 32px;
+            left: 50%;
+            transform: translateX(-50%) translateY(80px);
+            z-index: 100;
+            transition: transform 0.3s cubic-bezier(.34, 1.56, .64, 1), opacity 0.3s;
+            opacity: 0;
+            pointer-events: none;
+            display: flex;
+            gap: 12px;
+        }
+
+        #actionOverlay.visible {
+            transform: translateX(-50%) translateY(0);
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        /* View Switcher */
+        .view-btn.active {
+            background-color: #6366f1;
+            color: white !important;
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+        }
+
+        .table-container {
+            background: white;
+            border-radius: 1rem;
+            overflow-x: auto;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+        }
+
+        .task-table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+        }
+
+        .task-table th {
+            background: #f8fafc;
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-weight: 700;
+            color: #64748b;
+            padding: 0.85rem 1rem;
+            border-bottom: 1px solid #e2e8f0;
+            white-space: nowrap;
+        }
+
+        .task-table td {
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid #f1f5f9;
+            font-size: 0.8rem;
+            color: #334155;
+            vertical-align: middle;
+        }
+
+        .task-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .task-table tr.selected {
+            background-color: #f5f7ff;
+        }
+
+        .task-table tr:hover:not(.selected) {
+            background-color: #fcfdfe;
+        }
+    </style>
+</head>
+
+<body class="bg-gradient-to-br from-slate-50 to-blue-50 min-h-screen">
+
+   <div class="w-full px-4 sm:px-6 py-6 relative">
+
+    <!-- STICKY Wrapper for Header + Tabs + Actions -->
+    <div class="sticky top-16 z-30 bg-gradient-to-br from-slate-50 to-blue-50 pt-6 pb-2 -mt-6 -mx-4 px-4 sm:-mx-6 sm:px-6 border-b border-gray-200 shadow-sm mb-4">
+
+        <!-- Header -->
+        <div class="flex flex-wrap justify-between items-center gap-4 mb-5">
+            <div class="flex items-center gap-3">
+                <div class="bg-gradient-to-br from-indigo-500 to-purple-600 p-2.5 rounded-2xl shadow-md">
+                    <i class="fas fa-tasks text-white text-xl"></i>
+                </div>
+                <div>
+                    <h1 class="text-2xl font-extrabold text-gray-800 leading-tight">Task <span
+                            class="text-indigo-600">Center</span></h1>
+                    <p class="text-xs text-gray-400 mt-0.5">Manage your tasks</p>
+                </div>
+            </div>
+            <div class="flex gap-2 items-center flex-wrap">
+                <div id="roleSwitcherContainer" class="hidden"></div>
+                <div class="flex gap-1.5 mr-2">
+                    <button id="quickDelayed"
+                        class="bg-white hover:bg-red-50 text-red-600 border border-red-200 px-3 py-1.5 rounded-xl text-xs font-medium shadow-sm transition-all"><i
+                            class="fas fa-hourglass-half mr-1"></i> Delayed</button>
+                    <button id="quickToday"
+                        class="bg-white hover:bg-blue-50 text-blue-600 border border-blue-200 px-3 py-1.5 rounded-xl text-xs font-medium shadow-sm transition-all"><i
+                            class="far fa-calendar-check mr-1"></i> Today</button>
+                </div>
+                <div id="todayTomorrowOnlyBadge"
+                    class="hidden flex bg-gray-100 rounded-full p-0.5 border border-gray-200 shadow-inner ml-1">
+                    <div class="px-4 py-1.5 rounded-full text-xs font-bold bg-white text-indigo-600 shadow cursor-default">
+                        <i class="far fa-calendar-check mr-1"></i>
+                        Today &amp; Tomorrow Only
+                    </div>
+                </div>
+                <button id="openFilterBtn"
+                    class="bg-white hover:bg-indigo-50 text-gray-600 hover:text-indigo-600 px-4 py-2 rounded-xl shadow border border-gray-200 flex items-center gap-2 text-sm font-medium transition-all duration-150">
+                    <i class="fas fa-sliders-h text-indigo-400"></i>
+                    <span class="hidden sm:inline">Filter</span>
+                    <span id="filterBadge"
+                        class="hidden bg-indigo-600 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center font-bold">0</span>
+                </button>
+                <button id="exportBtn"
+                    class="bg-white hover:bg-emerald-50 text-gray-600 hover:text-emerald-600 px-4 py-2 rounded-xl shadow border border-gray-200 flex items-center gap-2 text-sm font-medium transition-all duration-150">
+                    <i class="fas fa-file-csv text-emerald-500"></i>
+                    <span class="hidden sm:inline">Export</span>
+                </button>
+
+                <!-- View Switcher -->
+                <div class="flex bg-gray-100 rounded-xl p-1 border border-gray-200 ml-1">
+                    <button id="viewCardBtn"
+                        class="view-btn active px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-200 flex items-center gap-1.5 text-gray-500">
+                        <i class="fas fa-th-large"></i> <span class="hidden md:inline">Cards</span>
+                    </button>
+                    <button id="viewTableBtn"
+                        class="view-btn px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-200 flex items-center gap-1.5 text-gray-500">
+                        <i class="fas fa-list"></i> <span class="hidden md:inline">Table</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tabs with live counts -->
+        <div class="flex border-b border-gray-200 gap-1 mb-4">
+            <button id="tabDelegation"
+                class="tab-btn relative px-5 py-2.5 text-sm font-semibold rounded-t-xl transition-all duration-200 bg-white text-indigo-700 border-b-2 border-indigo-500 shadow-sm flex items-center gap-2">
+                <i class="fas fa-paper-plane"></i>
+                Delegation
+                <span id="countDelegation"
+                    class="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-xs font-bold bg-indigo-100 text-indigo-700">0</span>
+            </button>
+            <button id="tabChecklist"
+                class="tab-btn relative px-5 py-2.5 text-sm font-semibold rounded-t-xl transition-all duration-200 text-gray-500 hover:text-gray-700 flex items-center gap-2">
+                <i class="fas fa-clipboard-list"></i>
+                Checklist
+                <span id="countChecklist"
+                    class="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-xs font-bold bg-gray-100 text-gray-500">0</span>
+            </button>
+        </div>
+
+        <div id="selectAllBar"
+            class="flex flex-wrap items-center justify-between gap-3 px-1 bg-white/60 backdrop-blur p-3 rounded-xl border border-gray-200 shadow-sm">
+            <div class="flex items-center gap-3">
+                <label class="flex items-center gap-2 cursor-pointer select-none">
+                    <input type="checkbox" id="selectAllCb" class="w-4 h-4 accent-indigo-600 rounded">
+                    <span class="text-sm font-medium text-gray-600">Select all</span>
+                </label>
+                <span id="selectedCount" class="text-xs text-indigo-600 font-semibold hidden"></span>
+                <button id="clearSelectionBtn"
+                    class="hidden items-center gap-1.5 px-3 py-1 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-lg text-xs font-semibold transition-all">
+                    <i class="fas fa-times-circle"></i> Unselect All
+                </button>
+            </div>
+
+            <!-- Pagination Bar -->
+            <div id="paginationBar" class="flex flex-wrap items-center gap-3 hidden">
+                <span id="paginationInfo" class="text-[10px] font-bold text-gray-400 uppercase tracking-wider"></span>
+                <div class="flex items-center gap-1">
+                    <div id="pgControls" class="flex items-center gap-1">
+                        <button id="pgFirst"
+                            class="px-2 py-1 rounded-lg bg-white border border-gray-200 text-gray-600 text-xs hover:bg-indigo-50 hover:border-indigo-300 disabled:opacity-40 disabled:cursor-not-allowed transition"><i
+                                class="fas fa-angle-double-left"></i></button>
+                        <button id="pgPrev"
+                            class="px-2 py-1 rounded-lg bg-white border border-gray-200 text-gray-600 text-xs hover:bg-indigo-50 hover:border-indigo-300 disabled:opacity-40 disabled:cursor-not-allowed transition"><i
+                                class="fas fa-angle-left"></i></button>
+                        <div id="pgNumbers" class="flex gap-1"></div>
+                        <button id="pgNext"
+                            class="px-2 py-1 rounded-lg bg-white border border-gray-200 text-gray-600 text-xs hover:bg-indigo-50 hover:border-indigo-300 disabled:opacity-40 disabled:cursor-not-allowed transition"><i
+                                class="fas fa-angle-right"></i></button>
+                        <button id="pgLast"
+                            class="px-2 py-1 rounded-lg bg-white border border-gray-200 text-gray-600 text-xs hover:bg-indigo-50 hover:border-indigo-300 disabled:opacity-40 disabled:cursor-not-allowed transition"><i
+                                class="fas fa-angle-double-right"></i></button>
+                    </div>
+                    <select id="pgSize"
+                        class="ml-1 border border-gray-200 rounded-lg px-2 py-1 text-[11px] font-bold text-gray-500 bg-white focus:outline-none focus:ring-1 focus:ring-indigo-300">
+                        <option value="6">6</option>
+                        <option value="12" selected>12</option>
+                        <option value="24">24</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+    </div>
+    <!-- END STICKY Wrapper -->
+
+    <!-- Cards Grid (must stay OUTSIDE sticky wrapper) -->
+    <div id="cardsContainer" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        <div class="col-span-full text-center py-16 text-gray-400">
+            <i class="fas fa-spinner fa-pulse text-2xl mb-2 block"></i>
+            <span class="text-sm">Loading tasks...</span>
+        </div>
+    </div>
+
+</div>
+    <!-- Floating Action Overlay -->
+    <div id="actionOverlay">
+        <button id="completeOverlayBtn"
+            class="hidden items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm rounded-2xl shadow-xl shadow-indigo-300 transition-all duration-200">
+            <i class="fas fa-check-circle text-lg"></i>
+            Complete Selected
+            <span id="overlayCount"
+                class="bg-white text-indigo-600 text-xs font-extrabold rounded-full w-5 h-5 flex items-center justify-center">0</span>
+        </button>
+        <button id="verifyOverlayBtn"
+            class="hidden items-center gap-2 px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm rounded-2xl shadow-xl shadow-emerald-300 transition-all duration-200">
+            <i class="fas fa-check-double text-lg"></i>
+            Verify Selected
+            <span id="verifyOverlayCount"
+                class="bg-white text-emerald-600 text-xs font-extrabold rounded-full w-5 h-5 flex items-center justify-center">0</span>
+        </button>
+    </div>
+
+    <!-- Sidebar styling (moved from head to be closer to usage) -->
+    <style>
+        #completeSidebar {
+            position: fixed;
+            top: 0;
+            right: 0;
+            height: 100%;
+            width: 100%;
+            max-width: 600px;
+            background: #fff;
+            box-shadow: -4px 0 32px rgba(0, 0, 0, 0.15);
+            z-index: 200;
+            transform: translateX(100%);
+            transition: transform 0.35s cubic-bezier(.4, 0, .2, 1);
+            display: flex;
+            flex-direction: column;
+        }
+
+        #completeSidebar.open {
+            transform: translateX(0);
+        }
+
+        #sidebarBackdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.35);
+            z-index: 199;
+            display: none;
+        }
+
+        #sidebarBackdrop.open {
+            display: block;
+        }
+    </style>
+
+
+    <!-- Complete Sidebar Backdrop -->
+    <div id="sidebarBackdrop"></div>
+
+    <!-- Complete Sidebar -->
+    <div id="completeSidebar">
+        <div
+            class="px-5 py-4 border-b flex justify-between items-center bg-gradient-to-r from-indigo-50 to-purple-50 flex-shrink-0">
+            <h2 class="text-lg font-bold text-gray-800 flex items-center gap-2">
+                <i class="fas fa-check-double text-indigo-500"></i> Complete Tasks
+            </h2>
+            <button id="closeSidebarBtn"
+                class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-200 text-gray-500 transition"><i
+                    class="fas fa-times"></i></button>
+        </div>
+
+        <div id="sidebarContent" class="flex-1 overflow-y-auto p-5 space-y-4"></div>
+
+        <div class="p-5 border-t bg-gray-50 flex-shrink-0 flex gap-3">
+            <button id="cancelSidebarBtn"
+                class="flex-1 py-2.5 rounded-xl border border-gray-200 bg-white text-sm text-gray-600 font-medium hover:bg-gray-100 transition">Cancel</button>
+            <button id="submitCompleteBtn"
+                class="flex-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold shadow transition flex items-center justify-center gap-2">
+                <i class="fas fa-check-circle"></i> Submit All
+            </button>
+        </div>
+    </div>
+
+    <!-- FILTER MODAL -->
+    <div id="filterModal" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 hidden">
+        <div id="filterSlidePanel"
+            class="absolute left-0 top-0 h-full w-full max-w-sm bg-white shadow-2xl transform -translate-x-full transition-transform duration-300 ease-in-out flex flex-col">
+            <div class="p-5 border-b flex justify-between items-center bg-gradient-to-r from-indigo-50 to-purple-50">
+                <h2 class="text-lg font-bold text-gray-800 flex items-center gap-2">
+                    <i class="fas fa-sliders-h text-indigo-500"></i> Filter Tasks
+                </h2>
+                <button id="closeFilterModal"
+                    class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-200 text-gray-500 transition"><i
+                        class="fas fa-times"></i></button>
+            </div>
+
+            
+            <div class="flex-1 overflow-y-auto p-5 space-y-5">
+
+              
+                <!-- Date Range Filter -->
+                <div>
+                  <label class="text-sm font-semibold text-gray-700 mb-1.5 block">Task Date Range (Past/Today)</label>
+                  <div class="grid grid-cols-2 gap-2">
+                    <input id="filterFromDate" type="date" class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs outline-none focus:ring-1 focus:ring-indigo-300">
+                    <input id="filterToDate" type="date" class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs outline-none focus:ring-1 focus:ring-indigo-300">
+                  </div>
+                </div>
+                <div>
+                    <div class="flex items-center justify-between mb-1.5">
+                        <label class="text-sm font-semibold text-gray-700">Name</label>
+                        <button class="clearSection text-xs text-indigo-500 hover:underline"
+                            data-section="name">Clear</button>
+                    </div>
+                    <div class="relative mb-1.5">
+                        <i class="fas fa-search absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs"></i>
+                        <input id="searchName" type="text" placeholder="Search names…"
+                            class="w-full pl-7 pr-3 py-1.5 border border-gray-200 rounded-lg text-xs focus:ring-1 focus:ring-indigo-300 outline-none">
+                    </div>
+                    <div id="nameCheckboxList"
+                        class="max-h-40 overflow-y-auto border border-gray-100 rounded-xl divide-y divide-gray-50 bg-gray-50">
+                    </div>
+                </div>
+                <div>
+                    <div class="flex items-center justify-between mb-1.5">
+                        <label class="text-sm font-semibold text-gray-700">Frequency</label>
+                        <button class="clearSection text-xs text-indigo-500 hover:underline"
+                            data-section="freq">Clear</button>
+                    </div>
+                    <div id="freqCheckboxList"
+                        class="border border-gray-100 rounded-xl divide-y divide-gray-50 bg-gray-50">
+                        <label
+                            class="flex items-center gap-2.5 px-3 py-2 hover:bg-white cursor-pointer transition"><input
+                                type="checkbox" class="freq-cb accent-indigo-600 w-3.5 h-3.5" value="Daily"><span
+                                class="text-sm text-gray-700">Daily</span></label>
+                        <label
+                            class="flex items-center gap-2.5 px-3 py-2 hover:bg-white cursor-pointer transition"><input
+                                type="checkbox" class="freq-cb accent-indigo-600 w-3.5 h-3.5" value="Weekly"><span
+                                class="text-sm text-gray-700">Weekly</span></label>
+                        <label
+                            class="flex items-center gap-2.5 px-3 py-2 hover:bg-white cursor-pointer transition"><input
+                                type="checkbox" class="freq-cb accent-indigo-600 w-3.5 h-3.5" value="Monthly"><span
+                                class="text-sm text-gray-700">Monthly</span></label>
+                        <label
+                            class="flex items-center gap-2.5 px-3 py-2 hover:bg-white cursor-pointer transition"><input
+                                type="checkbox" class="freq-cb accent-indigo-600 w-3.5 h-3.5" value="Quarterly"><span
+                                class="text-sm text-gray-700">Quarterly</span></label>
+                        <label
+                            class="flex items-center gap-2.5 px-3 py-2 hover:bg-white cursor-pointer transition"><input
+                                type="checkbox" class="freq-cb accent-indigo-600 w-3.5 h-3.5" value="Once"><span
+                                class="text-sm text-gray-700">Once</span></label>
+                    </div>
+                </div>
+                <div>
+                    <div class="flex items-center justify-between mb-1.5">
+                        <label class="text-sm font-semibold text-gray-700">Verified By</label>
+                        <button class="clearSection text-xs text-indigo-500 hover:underline"
+                            data-section="verified">Clear</button>
+                    </div>
+                    <div class="relative mb-1.5">
+                        <i class="fas fa-search absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs"></i>
+                        <input id="searchVerifier" type="text" placeholder="Search verifiers…"
+                            class="w-full pl-7 pr-3 py-1.5 border border-gray-200 rounded-lg text-xs focus:ring-1 focus:ring-indigo-300 outline-none">
+                    </div>
+                    <div id="verifiedCheckboxList"
+                        class="max-h-40 overflow-y-auto border border-gray-100 rounded-xl divide-y divide-gray-50 bg-gray-50">
+                    </div>
+                </div>
+                <div>
+                    <div class="flex items-center justify-between mb-1.5">
+                        <label class="text-sm font-semibold text-gray-700">Status</label>
+                        <button class="clearSection text-xs text-indigo-500 hover:underline"
+                            data-section="status">Clear</button>
+                    </div>
+                    <div id="statusCheckboxList"
+                        class="border border-gray-100 rounded-xl divide-y divide-gray-50 bg-gray-50">
+                        <label
+                            class="flex items-center gap-2.5 px-3 py-2 hover:bg-white cursor-pointer transition"><input
+                                type="checkbox" class="status-cb accent-indigo-600 w-3.5 h-3.5" value="pending"><span
+                                class="text-sm text-gray-700">Pending (Actual empty)</span></label>
+                        <label
+                            class="flex items-center gap-2.5 px-3 py-2 hover:bg-white cursor-pointer transition"><input
+                                type="checkbox" class="status-cb accent-indigo-600 w-3.5 h-3.5" value="completed"><span
+                                class="text-sm text-gray-700">Completed (Actual not empty)</span></label>
+                    </div>
+                </div>
+            </div>
+            <div class="p-5 border-t bg-gray-50 flex gap-3">
+                <button id="clearAllFiltersBtn"
+                    class="flex-1 py-2.5 rounded-xl border border-gray-200 bg-white text-sm text-gray-600 font-medium hover:bg-gray-100 transition">Clear
+                    All</button>
+                <button id="applyFiltersBtn"
+                    class="flex-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold shadow transition">Apply</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ── State ──────────────────────────────────────────────────────────────
+        let allTasks = [];
+        let currentTab = 'delegation';
+        let currentRoleSwitcher = 'all';
+        let filterNames = [];
+        let filterFreqs = [];
+        let filterVerified = [];
+      let filterStatus = ['pending']; // By default pending set kar diya
+         let currentQuickDate = 'upcoming';
+        let currentQuickFilter = null;
+        let currentPage = 1;
+        let pageSize = 12;
+        let filteredTasks = [];
+        // Selection state: Set of task IDs
+        let selectedTaskIds = new Set();
+        // Upload state: { taskId: File }
+        let uploadedFiles = {};
+        let currentView = 'card';
+
+        const PROOF_FOLDER_ID = '1rCav-RzMzurNmk18vYzeFsJKSOq0SDuj';
+
+var currentUser = localStorage.getItem('erp_logged_user') || '';
+        const currentRole = localStorage.getItem('erp_logged_role') || 'Delegatee';
+
+        // ── Helpers ────────────────────────────────────────────────────────────
+        function showToast(msg, icon = 'success') {
+            Swal.fire({ toast: true, position: 'top-end', icon, title: msg, showConfirmButton: false, timer: 2200, timerProgressBar: true });
+        }
+        function escapeHtml(s) {
+            return s ? String(s).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m])) : '';
+        }
+        function getLatestRemarkText(remarkValue) {
+            if (!remarkValue) return '—';
+            const val = String(remarkValue).trim();
+            if (val.startsWith('[') && val.endsWith(']')) {
+                try {
+                    const arr = JSON.parse(val);
+                    if (Array.isArray(arr) && arr.length > 0) {
+                        const last = arr[arr.length - 1];
+                        return last.remark || last.text || '—';
+                    }
+                } catch (e) {
+                    console.error("Error parsing remark JSON", e);
+                }
+            }
+            return val || '—';
+        }
+
+        // ── Delay formatting: show days if >= 24h, else hours ─────────────────
+        function computeDelayText(dueDateStr, isCompleted) {
+            if (isCompleted || !dueDateStr) return '';
+            const due = new Date(dueDateStr);
+            if (isNaN(due.getTime())) return '';
+            const now = new Date();
+            if (due >= now) return '';
+            const diffMs = now - due;
+            const totalMinutes = Math.floor(diffMs / (1000 * 60));
+            const totalHours = Math.floor(diffMs / (1000 * 60 * 60));
+            const totalDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+            if (totalDays >= 1) return ` (${totalDays} day${totalDays > 1 ? 's' : ''} delay)`;
+            if (totalHours >= 1) return ` (${totalHours}h delay)`;
+            if (totalMinutes >= 1) return ` (${totalMinutes}m delay)`;
+            return ' (just delayed)';
+        }
+
+        // ── Role Switcher ──────────────────────────────────────────────────────
+        function initRoleSwitcher() {
+            const container = document.getElementById('roleSwitcherContainer');
+            if (!container) return;
+            if (currentRole === 'Delegatee') {
+                container.classList.add('hidden');
+                currentRoleSwitcher = 'tome';
+                return;
+            }
+            const options = (currentRole === 'Delegator' || currentRole === 'Admin' || currentRole === 'PC')
+    ? [{ label: 'All', val: 'all' }, { label: 'By Me', val: 'byme' }, { label: 'To Me', val: 'tome' }]
+    : [{ label: 'By Me', val: 'byme' }, { label: 'To Me', val: 'tome' }];
+currentRoleSwitcher = options[0].val;
+            container.classList.remove('hidden');
+            container.innerHTML = `<div class="flex bg-gray-100 rounded-full p-0.5 border border-gray-200 shadow-inner">
+          ${options.map((o, i) => `
+            <button class="role-btn px-4 py-1.5 rounded-full text-xs font-semibold transition-all duration-200 ${i === 0 ? 'bg-white text-indigo-600 shadow' : 'text-gray-500 hover:text-gray-700'}"
+              data-val="${o.val}">${o.label}</button>`).join('')}
+        </div>`;
+            container.querySelectorAll('.role-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    container.querySelectorAll('.role-btn').forEach(b => {
+                        b.classList.remove('bg-white', 'text-indigo-600', 'shadow');
+                        b.classList.add('text-gray-500');
+                    });
+                    btn.classList.add('bg-white', 'text-indigo-600', 'shadow');
+                    btn.classList.remove('text-gray-500');
+                    currentRoleSwitcher = btn.getAttribute('data-val');
+                    currentQuickFilter = null;
+                    currentPage = 1;
+                    applyFiltersAndRender();
+                });
+            });
+        }
+
+        // ── Filters & Render ───────────────────────────────────────────────────
+function applyFiltersAndRender() {
+    const normUser = (currentUser || '').trim().toLowerCase();
+
+    // 1. Visibility & Role Logic (User check)
+  // 1. Visibility & Role Logic (User check)
+    const isVisibleForUser = (t) => {
+        const isDelegator = (t['Verified by'] || '').trim().toLowerCase() === normUser;
+        const isDelegatee = (t.Name || '').trim().toLowerCase() === normUser;
+        const isSubMonitor = (t['Sub Monitoring'] || '').trim().toLowerCase() === normUser;
+        const isCompleted = (t['Actual'] || '').trim() !== '';
+
+        if (isSubMonitor && !isDelegator && !isDelegatee && isCompleted) {
+            return false; // Auto-remove completed sub-monitored tasks
+        }
+
+        // Agar normal doer hai
+        if (currentRole === 'Delegatee' || currentRole === 'User') {
+            return isDelegatee || isSubMonitor || isDelegator;
+        }
+
+        // Agar "All" tab selected hai
+        // Agar "All" tab selected hai — Delegator/Admin/PC sabko poora data dikhega
+if (currentRoleSwitcher === 'all') {
+    return true;
+}
+
+        // Agar "By Me" tab selected hai
+        if (currentRoleSwitcher === 'byme') return isDelegator || isSubMonitor;
+        
+        // Agar "To Me" tab selected hai
+        if (currentRoleSwitcher === 'tome') return isDelegatee || isSubMonitor;
+
+        return false;
+    };
+
+    let data = [...allTasks];
+
+    // Apply Role Filter
+    data = data.filter(isVisibleForUser);
+
+    // 2. Tab filter (Checklist vs Delegation)
+    if (currentTab === 'delegation') {
+        data = data.filter(t => t._type === 'delegation');
+    } else if (currentTab === 'checklist') {
+        data = data.filter(t => t._type === 'checklist');
+    }
+
+    const fromDate = document.getElementById('filterFromDate').value;
+    const toDate = document.getElementById('filterToDate').value;
+
+    const todayLocal = new Date();
+    const todayStr = `${todayLocal.getFullYear()}-${String(todayLocal.getMonth() + 1).padStart(2, '0')}-${String(todayLocal.getDate()).padStart(2, '0')}`;
+
+    if ((fromDate && fromDate > todayStr) || (toDate && toDate > todayStr)) {
+        showToast("Future dates cannot be selected!", "error");
+        return;
+    }
+
+    // 3. Date Filtering Logic
+    if (fromDate || toDate) {
+        data = data.filter(t => {
+            const dStr = t['Revised Date'] || t['Due Date'];
+            if (!dStr) return false;
+            const d = parseDateTimeString(dStr);
+            if (!d) return false;
+            const dateStr = getLocalISODate(d);
+            let match = true;
+            if (fromDate) match = match && (dateStr >= fromDate);
+            if (toDate) match = match && (dateStr <= toDate);
+            return match;
+        });
+    } else if (currentQuickFilter === 'delayed') {
+        data = data.filter(t => {
+            if ((t['Actual'] || '').trim() !== '') return false;
+            const dStr = t['Revised Date'] || t['Due Date'];
+            if (!dStr) return false;
+            const d = parseDateTimeString(dStr);
+            return d && d < new Date();
+        });
+    } else if (currentQuickFilter === 'today') {
+        const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+        const todayEnd = new Date(); todayEnd.setHours(23, 59, 59, 999);
+        data = data.filter(t => {
+            const dStr = t['Revised Date'] || t['Due Date'];
+            if (!dStr) return false;
+            const d = parseDateTimeString(dStr);
+            return d && d >= todayStart && d <= todayEnd;
+        });
+    } 
+    // Upcoming filter logic
+    else if (currentQuickDate === 'upcoming') {
+        const today = new Date(); today.setHours(0, 0, 0, 0);
+        const tomorrow = new Date(); tomorrow.setDate(today.getDate() + 1); tomorrow.setHours(23, 59, 59, 999);
+
+        data = data.filter(t => {
+            // Delegation tab ke liye saare tasks dikhao (Date bypass)
+            if (t._type === 'delegation') return true;
+
+            // Checklist tab ke liye aaj aur kal ka filter
+            const dStr = t['Revised Date'] || t['Due Date'];
+            if (!dStr) return false;
+            const d = parseDateTimeString(dStr);
+            if (!d) return false;
+
+            const isTodayOrTomorrow = d.getTime() >= today.getTime() && d.getTime() <= tomorrow.getTime();
+            const isCompleted = (t['Actual'] || '').trim() !== '';
+            const isPastDelayed = d.getTime() < today.getTime() && !isCompleted;
+
+            return isTodayOrTomorrow || isPastDelayed;
+        });
+    }
+
+    // 4. Multi-Select Filters
+    if (filterNames.length) data = data.filter(t => filterNames.includes(t.Name));
+    if (filterFreqs.length) data = data.filter(t => filterFreqs.includes(t.Frequency));
+    if (filterVerified.length) data = data.filter(t => filterVerified.includes((t['Verified by'] || '').trim()));
+
+    // 5. Status Filtering (Pending vs Completed)
+    if (filterStatus.length) {
+    data = data.filter(t => {
+        const isCompleted = (t['Actual'] || '').trim() !== '';
+        if (filterStatus.includes('pending') && !isCompleted) return true;
+        if (filterStatus.includes('completed') && isCompleted) return true;
+        return false;
+    });
+} else {
+        data = data.filter(t => {
+            const isCompleted = (t['Actual'] || '').trim() !== '';
+            if (t._type === 'checklist') {
+                return !isCompleted; // Checklist mein sirf pending dikhao
+            } else {
+                return true; // Delegation mein sab dikhao
+            }
+        });
+        data = data.filter(t => (t['Actual'] || '').trim() === ''); 
+    }
+
+    // 6. Fix Tab Counts (Counts strictly pending tasks for both tabs)
+    const baseForCounts = allTasks.filter(isVisibleForUser).filter(t => (t['Actual'] || '').trim() === '');
+
+    document.getElementById('countDelegation').textContent = baseForCounts.filter(t => t._type === 'delegation').length;
+    document.getElementById('countChecklist').textContent = baseForCounts.filter(t => t._type === 'checklist').length;
+
+    filteredTasks = data;
+    updateFilterBadge();
+    renderCurrentView();
+}
+        function renderCurrentView() {
+            if (currentView === 'card') {
+                document.getElementById('cardsContainer').className = "grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4";
+                renderCards();
+            } else {
+                document.getElementById('cardsContainer').className = "block w-full";
+                renderTable();
+            }
+        }
+
+     function renderCards() {
+            const container = document.getElementById('cardsContainer');
+            const pgBar = document.getElementById('paginationBar');
+            if (!container) return;
+
+            const totalItems = filteredTasks.length;
+            const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+            if (currentPage > totalPages) currentPage = totalPages;
+
+            const start = (currentPage - 1) * pageSize;
+            const pageTasks = filteredTasks.slice(start, start + pageSize);
+
+            if (totalItems === 0) {
+                container.innerHTML = `<div class="col-span-full text-center py-16 text-gray-400">
+      <i class="fas fa-inbox text-3xl mb-3 block text-gray-300"></i>
+      <p class="text-sm font-medium text-gray-500">No tasks match your filters</p>
+    </div>`;
+                pgBar.classList.add('hidden');
+                updateSelectAllState();
+                return;
+            }
+
+            container.innerHTML = pageTasks.map(task => {
+                const dueDate = task['Due Date'];
+                const revisedDate = task['Revised Date'] || '';
+                const actual = (task['Actual'] || '').trim();
+                const isCompleted = actual !== '';
+                const isOverdue = dueDate && new Date(dueDate) < new Date() && !isCompleted;
+                const delayText = computeDelayText(dueDate, isCompleted);
+                let statusLabel = isCompleted ? 'Completed' : 'Pending';
+                if (task._type === 'delegation' && task['Status']) {
+                    statusLabel = task['Status'];
+                }
+                let statusColor = 'background:#fef9c3;color:#854d0e'; // Pending
+                if (statusLabel === 'Completed') {
+                    statusColor = 'background:#dcfce7;color:#166534';
+                } else if (statusLabel === 'Approval Waiting') {
+                    statusColor = 'background:#dbeafe;color:#1e40af';
+                } else if (statusLabel === 'Completed With Delay') {
+                    statusColor = 'background:#fee2e2;color:#991b1b';
+                } else if (isOverdue) {
+                    statusColor = 'background:#fee2e2;color:#991b1b';
+                }
+                const freqColors = {
+                    Daily: 'background:#dbeafe;color:#1e40af',
+                    Weekly: 'background:#ede9fe;color:#5b21b6',
+                    Monthly: 'background:#e0e7ff;color:#3730a3',
+                    Quarterly: 'background:#ccfbf1;color:#0f766e',
+                    Once: 'background:#f3f4f6;color:#374151'
+                };
+                const freqStyle = freqColors[task.Frequency] || freqColors.Once;
+                const avatarLetter = (task.Name || '?').charAt(0).toUpperCase();
+                const proofReq = task['Proof is Required'] === 'Yes';
+                const taskId = task['Task ID'] || '';
+                const isSelected = selectedTaskIds.has(task._type + '_' + taskId);
+
+                // Gap days
+                let gapHtml = '';
+                if (dueDate && actual) {
+                    const due = new Date(dueDate);
+                    const act = new Date(actual);
+                    if (!isNaN(due) && !isNaN(act)) {
+                        const diffDays = Math.round((act - due) / (1000 * 60 * 60 * 24));
+                        if (diffDays > 0) gapHtml = '<span style="background:#fee2e2;color:#991b1b;font-size:11px;padding:2px 6px;border-radius:4px;font-weight:700">+' + diffDays + 'd late</span>';
+                        else if (diffDays < 0) gapHtml = '<span style="background:#dcfce7;color:#166534;font-size:11px;padding:2px 6px;border-radius:4px;font-weight:700">' + Math.abs(diffDays) + 'd early</span>';
+                        else gapHtml = '<span style="background:#dbeafe;color:#1e40af;font-size:11px;padding:2px 6px;border-radius:4px;font-weight:700">On time</span>';
+                    }
+                } else if (isOverdue) {
+                    gapHtml = '<span style="background:#fee2e2;color:#991b1b;font-size:11px;padding:2px 6px;border-radius:4px;font-weight:700">' + delayText.replace(/[()]/g, '').trim() + '</span>';
+                }
+
+                // Format dates
+                const fmtDate = d => {
+                    if (!d) return '—';
+                    const dt = new Date(d);
+                    if (isNaN(dt)) return d;
+                    return dt.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: '2-digit' });
+                };
+
+                const fmtDateTime = d => {
+                    if (!d) return '—';
+                    const dt = new Date(d);
+                    if (isNaN(dt)) return d;
+                    return dt.toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+                };
+
+                const docLinkHtml = task.Document ? 
+                  '<a href="' + escapeHtml(task.Document) + '" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" title="Open document" style="flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:4px;background:#eff6ff;color:#3b82f6;text-decoration:none;transition:background .15s" onmouseover="this.style.background=\'#dbeafe\'" onmouseout="this.style.background=\'#eff6ff\'"><i class="fas fa-external-link-alt" style="font-size:10px;pointer-events:none"></i></a>' 
+                  : '';
+
+                const revisedDateHtml = revisedDate ? 
+                  '<div style="font-size:11px;color:#4f46e5;font-weight:700;margin-top:1.5px" title="Revised Due Date"><i class="far fa-calendar-alt text-[9px] mr-0.5"></i>Rev: ' + fmtDate(revisedDate) + '</div>' 
+                  : '';
+
+                const subMonHtml = (() => {
+                  const subMon = String(task['Sub Monitoring'] || '').trim();
+                  if (subMon && subMon !== 'No' && subMon !== '') {
+                     return '<div style="margin-top:4px; display:inline-flex; align-items:center; gap:4px; background:#e0e7ff; color:#3730a3; border:1px solid #c7d2fe; padding:2px 6px; border-radius:4px; font-size:9px; font-weight:700; box-shadow:0 1px 2px rgba(0,0,0,0.05);" title="Monitored by: ' + escapeHtml(subMon) + '"><i class="fas fa-eye" style="font-size:8px;"></i> Mon: ' + escapeHtml(subMon) + '</div>';
+                  }
+                  return '';
+                })();
+
+                const proofBanner = proofReq
+                    ? '<div style="display:flex;align-items:center;gap:6px;padding:5px 10px;background:#fffbeb;border-top:1px solid #fde68a;border-bottom:1px solid #fde68a"><i class="fas fa-paperclip" style="color:#d97706;font-size:12px"></i><span style="font-size:12px;font-weight:700;color:#92400e;letter-spacing:.2px">Proof Required</span><span style="margin-left:auto;font-size:10px;background:#fde68a;color:#78350f;padding:2px 8px;border-radius:4px;font-weight:700">UPLOAD NEEDED</span></div>'
+                    : '';
+
+                // --- NEW DYNAMIC VERIFICATION LOGIC ---
+                const verifierName = (task['Verified by'] || '').trim();
+                const isVerified = (task._type === 'checklist')
+                  ? (task['Verified'] === true || String(task['Verified']).toLowerCase() === 'true')
+                  : (task['Status'] === 'Completed' || task['Status'] === 'Completed With Delay');
+                const verifiedTs = task['Verified Timestamp'] || '';
+
+                let verificationHTML = '';
+                if (verifierName && verifierName !== '') {
+                  if (isVerified) {
+                    verificationHTML = `
+                      <div style="display:flex;align-items:center;gap:4px">
+                        <i class="fas fa-check-double" style="color:#10b981;font-size:11px"></i>
+                        <span style="color:#059669;font-weight:700">Verified by ${escapeHtml(verifierName)}</span>
+                      </div>
+                      ${verifiedTs ? `<div style="font-size:10px;color:#64748b;margin-left:15px">Verified: ${fmtDateTime(verifiedTs)}</div>` : ''}
+                    `;
+                  } else {
+                    verificationHTML = `
+                      <div style="display:flex;align-items:center;gap:4px">
+                        <i class="fas fa-user-clock" style="color:#d97706;font-size:11px"></i>
+                        <span style="color:#b45309;font-weight:700" title="Verification is pending by ${escapeHtml(verifierName)}">Pending Verif. (${escapeHtml(verifierName)})</span>
+                      </div>
+                    `;
+                  }
+                }
+
+                return `
+      <div class="task-card bg-white rounded-xl shadow-sm hover:shadow-md transition-all duration-200 border-2 ${isSelected ? 'border-indigo-400 selected' : 'border-gray-100'} flex flex-col overflow-hidden cursor-pointer" data-task-id="${escapeHtml(task._type + '_' + taskId)}">
+
+        <!-- Row 1: checkbox + avatar + name + freq/status badges -->
+        <div style="display:grid;grid-template-columns:auto auto 1fr auto;align-items:center;gap:6px;padding:10px 10px 6px">
+          <input type="checkbox" class="card-select-cb w-4 h-4 accent-indigo-600 flex-shrink-0" data-task-id="${escapeHtml(task._type + '_' + taskId)}" ${isSelected ? 'checked' : ''}>
+          <div style="width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,#818cf8,#a78bfa);display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;font-weight:700;flex-shrink:0">${avatarLetter}</div>
+         <div style="min-width:0">
+            <p style="font-size:13px;font-weight:600;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin:0">${escapeHtml(task.Name || '—')}</p>
+            <p style="font-size:11px;color:#94a3b8;font-family:monospace;margin:0">${escapeHtml(taskId)}</p>
+            ${subMonHtml}
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0">
+            <span style="${freqStyle};font-size:10px;padding:2px 7px;border-radius:4px;font-weight:600;white-space:nowrap">
+               <i class="fas fa-sync-alt" style="font-size:9px;margin-right:2px"></i>${escapeHtml(task.Frequency || '—')}
+            </span>
+            <span style="${statusColor};font-size:10px;padding:2px 7px;border-radius:4px;font-weight:600;white-space:nowrap">
+               <i class="fas ${isCompleted ? 'fa-check-circle' : 'fa-hourglass-half'}" style="font-size:9px;margin-right:2px"></i>${statusLabel}
+            </span>
+          </div>
+        </div>
+
+        <!-- Row 2: task description -->
+        <div style="padding:0 10px 6px">
+          <p style="font-size:12px;color:#475569;margin:0;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.4" title="${escapeHtml(task['Task Description'])}">${escapeHtml(task['Task Description'] || '—')}</p>
+        </div>
+
+        <!-- Row 3: due | actual | gap -->
+        <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:4px;padding:5px 10px;background:#f8fafc;border-top:1px solid #f1f5f9;border-bottom:1px solid #f1f5f9;align-items:center">
+          <div>
+            <p style="font-size:10px;color:#94a3b8;margin:0;font-weight:600;text-transform:uppercase;letter-spacing:.4px">Due</p>
+            <p style="font-size:13px;color:${isOverdue ? '#dc2626' : '#334155'};margin:0;font-weight:${isOverdue ? '600' : '400'}">${fmtDate(dueDate)}</p>
+            ${revisedDateHtml}
+          </div>
+          <div>
+            <p style="font-size:10px;color:#94a3b8;margin:0;font-weight:600;text-transform:uppercase;letter-spacing:.4px">Actual</p>
+            <p style="font-size:13px;color:#334155;margin:0">${actual ? fmtDate(actual) : '—'}</p>
+          </div>
+          <div>${gapHtml}</div>
+        </div>
+
+        <!-- Proof Required Banner -->
+        ${proofBanner}
+
+        <!-- Row 4: doc + remark (email hidden) -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:3px 10px;padding:6px 10px;font-size:12px;color:#475569">
+          <div style="display:flex;align-items:center;gap:4px;overflow:hidden">
+            <i class="fas fa-file" style="color:#f59e0b;font-size:11px;flex-shrink:0"></i>
+            <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1">Doc: ${escapeHtml(task.Document ? '✓' : '—')}</span>
+            ${docLinkHtml}
+          </div>
+          <div class="remark-trigger" onclick="event.stopPropagation(); viewRemarkHistory('${escapeHtml(task._type + '_' + taskId)}')" style="display:flex;align-items:center;gap:4px;overflow:hidden;cursor:pointer" title="Click to view remark history">
+            <i class="fas fa-comment text-indigo-400 hover:text-indigo-600" style="font-size:11px;flex-shrink:0"></i>
+            <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-decoration:underline;text-underline-offset:2px;color:#4f46e5" title="${escapeHtml(getLatestRemarkText(task.Remark))}">Remark: ${escapeHtml(getLatestRemarkText(task.Remark))}</span>
+          </div>
+        </div>
+
+        <!-- Row 5: verified by + created at -->
+        <div style="display:flex;justify-content:space-between;align-items:flex-end;padding:5px 10px;border-top:1px solid #f1f5f9;background:#fafafa">
+          <div style="display:flex;flex-direction:column;gap:1px;font-size:11px">
+            ${verificationHTML}
+          </div>
+          <span style="font-size:11px;color:#94a3b8;font-family:monospace">${escapeHtml(task['Created At'] || '')}</span>
+        </div>
+
+      </div>`;
+            }).join('');
+
+            // Wire up card checkboxes
+            container.querySelectorAll('.card-select-cb').forEach(cb => {
+                cb.addEventListener('change', function () {
+                    const tid = this.getAttribute('data-task-id');
+                    if (this.checked) selectedTaskIds.add(tid);
+                    else selectedTaskIds.delete(tid);
+                    const card = container.querySelector(`.task-card[data-task-id="${tid}"]`);
+                    if (card) {
+                        card.classList.toggle('selected', this.checked);
+                        card.classList.toggle('border-indigo-400', this.checked);
+                        card.classList.toggle('border-gray-100', !this.checked);
+                    }
+                    updateSelectAllState();
+                    updateCompleteOverlay();
+                });
+            });
+
+            attachCardClickHandlers();
+            updateSelectAllState();
+            renderPagination(totalItems, totalPages);
+        }
+function renderTable() {
+            const container = document.getElementById('cardsContainer');
+            const pgBar = document.getElementById('paginationBar');
+            if (!container) return;
+
+            const totalItems = filteredTasks.length;
+            const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+            if (currentPage > totalPages) currentPage = totalPages;
+
+            const start = (currentPage - 1) * pageSize;
+            const pageTasks = filteredTasks.slice(start, start + pageSize);
+
+            if (totalItems === 0) {
+                container.innerHTML = `<div class="text-center py-16 text-gray-400">
+                    <i class="fas fa-inbox text-3xl mb-3 block text-gray-300"></i>
+                    <p class="text-sm font-medium text-gray-500">No tasks match your filters</p>
+                </div>`;
+                pgBar.classList.add('hidden');
+                updateSelectAllState();
+                return;
+            }
+
+            const fmtDate = d => {
+                if (!d) return '—';
+                const dt = new Date(d);
+                if (isNaN(dt)) return d;
+                return dt.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: '2-digit' });
+            };
+
+            const fmtDateTime = d => {
+                if (!d) return '—';
+                const dt = new Date(d);
+                if (isNaN(dt)) return d;
+                return dt.toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+            };
+
+            const getFreqStyle = freq => {
+                const colors = {
+                    Daily: 'background:#dbeafe;color:#1e40af',
+                    Weekly: 'background:#ede9fe;color:#5b21b6',
+                    Monthly: 'background:#e0e7ff;color:#3730a3',
+                    Quarterly: 'background:#ccfbf1;color:#0f766e',
+                    Once: 'background:#f3f4f6;color:#374151'
+                };
+                return colors[freq] || colors.Once;
+            };
+
+            let tableHtml = `
+                <div class="table-container">
+                    <table class="task-table">
+                        <thead>
+                            <tr>
+                                <th class="w-10"><input type="checkbox" id="tableHeaderCb" class="accent-indigo-600 rounded"></th>
+                                <th>Task ID</th>
+                                <th>Name</th>
+                                <th>Description</th>
+                                <th>Frequency</th>
+                                <th>Due Date</th>
+                                <th>Actual</th>
+                                <th>Status</th>
+                                <th>Verified By</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
+
+            tableHtml += pageTasks.map(task => {
+                const taskId = task['Task ID'] || '';
+                const isSelected = selectedTaskIds.has(task._type + '_' + taskId);
+                const actual = (task['Actual'] || '').trim();
+                const isCompleted = actual !== '';
+                const isOverdue = task['Due Date'] && new Date(task['Due Date']) < new Date() && !isCompleted;
+                
+                let statusText = isCompleted ? 'Completed' : (isOverdue ? 'Overdue' : 'Pending');
+                if (task._type === 'delegation' && task['Status']) {
+                    statusText = task['Status'];
+                }
+                let statusColor = 'bg-yellow-100 text-yellow-700'; // Pending
+                if (statusText === 'Completed') {
+                    statusColor = 'bg-green-100 text-green-700';
+                } else if (statusText === 'Approval Waiting') {
+                    statusColor = 'bg-blue-100 text-blue-700';
+                } else if (statusText === 'Completed With Delay') {
+                    statusColor = 'bg-red-100 text-red-700';
+                } else if (statusText === 'Overdue' || isOverdue) {
+                    statusColor = 'bg-red-100 text-red-700';
+                }
+
+                // Gap logic
+                let gapHtml = '';
+                const dueDateStr = task['Due Date'];
+                if (dueDateStr && actual) {
+                    const due = new Date(dueDateStr);
+                    const act = new Date(actual);
+                    if (!isNaN(due) && !isNaN(act)) {
+                        const diffDays = Math.round((act - due) / (1000 * 60 * 60 * 24));
+                        if (diffDays > 0) gapHtml = `<div class="text-[9px] font-bold text-red-600 mt-0.5">+${diffDays}d late</div>`;
+                        else if (diffDays < 0) gapHtml = `<div class="text-[9px] font-bold text-green-600 mt-0.5">${Math.abs(diffDays)}d early</div>`;
+                        else gapHtml = `<div class="text-[9px] font-bold text-blue-600 mt-0.5">On time</div>`;
+                    }
+                } else if (isOverdue) {
+                    const due = new Date(dueDateStr);
+                    const now = new Date();
+                    const diffDays = Math.floor((now - due) / (1000 * 60 * 60 * 24));
+                    gapHtml = `<div class="text-[9px] font-bold text-red-600 mt-0.5">${diffDays > 0 ? diffDays + 'd overdue' : 'Delayed'}</div>`;
+                }
+
+                // Safe HTML pre-construction (No nested backticks)
+                let actionButtonsHtml = '';
+                if (task.Document) {
+                  actionButtonsHtml += '<a href="' + escapeHtml(task.Document) + '" target="_blank" class="w-7 h-7 flex items-center justify-center rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition" title="Open Document" onclick="event.stopPropagation()"><i class="fas fa-external-link-alt text-[10px]"></i></a> ';
+                }
+                if (task.Remark) {
+                  actionButtonsHtml += '<i class="fas fa-comment text-indigo-400 hover:text-indigo-600 cursor-pointer p-1 text-xs" title="Click to view remark history" onclick="event.stopPropagation(); viewRemarkHistory(\'' + escapeHtml(task._type + '_' + taskId) + '\')"></i> ';
+                }
+                if (!isCompleted) {
+                  actionButtonsHtml += '<button type="button" class="w-7 h-7 flex items-center justify-center rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border border-emerald-100 transition active:scale-95" title="Complete Task" onclick="event.stopPropagation(); triggerRowAction(\'' + escapeHtml(task._type + '_' + taskId) + '\', \'complete\')"><i class="fas fa-check text-[10px]"></i></button> ';
+                  actionButtonsHtml += '<button type="button" class="w-7 h-7 flex items-center justify-center rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-100 transition active:scale-95" title="Revise Due Date" onclick="event.stopPropagation(); triggerRowAction(\'' + escapeHtml(task._type + '_' + taskId) + '\', \'revise\')"><i class="fas fa-calendar-alt text-[10px]"></i></button>';
+                }
+
+                // --- NEW TABLE VERIFICATION LOGIC ---
+                const verifierName = (task['Verified by'] || '').trim();
+                const isVerified = (task._type === 'checklist')
+                  ? (task['Verified'] === true || String(task['Verified']).toLowerCase() === 'true')
+                  : (task['Status'] === 'Completed' || task['Status'] === 'Completed With Delay');
+                const verifiedTs = task['Verified Timestamp'] || '';
+
+                let tableVerificationHTML = '';
+                if (!verifierName || verifierName === '') {
+                  tableVerificationHTML = '<span class="text-gray-300">—</span>';
+                } else {
+                  if (isVerified) {
+                    tableVerificationHTML = `
+                      <div class="font-bold text-emerald-600 flex items-center gap-1">
+                        <i class="fas fa-check-double text-[10px]"></i> Verified by ${escapeHtml(verifierName)}
+                      </div>
+                      ${verifiedTs ? `<div class="text-[9px] text-gray-400">At: ${fmtDateTime(verifiedTs)}</div>` : ''}
+                    `;
+                  } else {
+                    tableVerificationHTML = `
+                      <div class="font-bold text-amber-600 flex items-center gap-1" title="Pending verification by ${escapeHtml(verifierName)}">
+                        <i class="fas fa-user-clock text-[10px]"></i> Pending (${escapeHtml(verifierName)})
+                      </div>
+                    `;
+                  }
+                }
+
+                return `
+                    <tr class="task-row ${isSelected ? 'selected' : ''}" data-task-id="${escapeHtml(task._type + '_' + taskId)}">
+                        <td><input type="checkbox" class="row-select-cb accent-indigo-600" data-task-id="${escapeHtml(task._type + '_' + taskId)}" ${isSelected ? 'checked' : ''}></td>
+                        <td class="font-mono text-[10px] font-bold text-gray-400">${escapeHtml(taskId)}</td>
+             <td class="font-semibold text-gray-700">
+                            <div class="truncate max-w-[150px]" title="${escapeHtml(task.Name || '—')}">${escapeHtml(task.Name || '—')}</div>
+                            ${(() => {
+                                const subMon = (task['Sub Monitoring'] || '').trim();
+                                if (subMon && subMon !== 'No') {
+                                    return `<div class="mt-1 inline-flex items-center gap-1 bg-indigo-50 border border-indigo-200 text-indigo-700 px-1.5 py-0.5 rounded text-[9px] font-bold shadow-sm" title="Monitored by: ${escapeHtml(subMon)}"><i class="fas fa-eye" style="font-size:8px;"></i> Mon: ${escapeHtml(subMon)}</div>`;
+                                }
+                                return '';
+                            })()}
+                        </td>
+                        <td class="min-w-[250px] max-w-[400px]">
+          <div class="break-words whitespace-normal">${escapeHtml(task['Task Description'] || '—')}</div>
+        </td>
+                        <td><span class="px-2 py-0.5 rounded-full text-[10px] font-bold" style="${getFreqStyle(task.Frequency)}">${escapeHtml(task.Frequency || 'Once')}</span></td>
+                        <td class="whitespace-nowrap ${isOverdue ? 'text-red-600 font-bold' : ''}">
+                            <div>${fmtDate(task['Due Date'])}</div>
+                            ${task['Revised Date'] ? `<div class="text-[10px] text-indigo-600 font-bold mt-0.5" title="Revised Due Date"><i class="far fa-calendar-alt text-[9px] mr-0.5"></i>Rev: ${fmtDate(task['Revised Date'])}</div>` : ''}
+                        </td>
+                        <td class="whitespace-nowrap">${actual ? fmtDate(actual) : '—'}</td>
+                        <td>
+                            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${statusColor}">${statusText}</span>
+                            ${gapHtml}
+                        </td>
+                        <td class="text-xs">
+                            ${tableVerificationHTML}
+                        </td>
+                        <td>
+                            <div class="flex items-center gap-1.5">
+                                ${actionButtonsHtml}
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+
+            tableHtml += `</tbody></table></div>`;
+            container.innerHTML = tableHtml;
+
+            // Wire up table checkboxes
+            container.querySelectorAll('.row-select-cb').forEach(cb => {
+                cb.addEventListener('change', function(e) {
+                    const tid = this.getAttribute('data-task-id');
+                    if (this.checked) selectedTaskIds.add(tid);
+                    else selectedTaskIds.delete(tid);
+                    const row = container.querySelector(`tr[data-task-id="${tid}"]`);
+                    if (row) row.classList.toggle('selected', this.checked);
+                    updateSelectAllState();
+                    updateCompleteOverlay();
+                });
+            });
+
+            // Wire up header checkbox
+            const headerCb = container.querySelector('#tableHeaderCb');
+            if (headerCb) {
+                const cbs = container.querySelectorAll('.row-select-cb');
+                headerCb.checked = cbs.length > 0 && Array.from(cbs).every(cb => cb.checked);
+                headerCb.indeterminate = Array.from(cbs).some(cb => cb.checked) && !headerCb.checked;
+                
+                headerCb.addEventListener('change', function() {
+                    cbs.forEach(cb => {
+                        cb.checked = this.checked;
+                        const tid = cb.getAttribute('data-task-id');
+                        if (this.checked) selectedTaskIds.add(tid);
+                        else selectedTaskIds.delete(tid);
+                        const row = container.querySelector(`tr[data-task-id="${tid}"]`);
+                        if (row) row.classList.toggle('selected', this.checked);
+                    });
+                    updateSelectAllState();
+                    updateCompleteOverlay();
+                });
+            }
+
+            attachTableRowClickHandlers();
+            updateSelectAllState();
+            renderPagination(totalItems, totalPages);
+        }
+        function attachTableRowClickHandlers() {
+            document.querySelectorAll('.task-row').forEach(row => {
+                row.addEventListener('click', function(e) {
+                    if (e.target.closest('input') || e.target.closest('a')) return;
+                    const tid = this.getAttribute('data-task-id');
+                    const cb = this.querySelector('.row-select-cb');
+                    if (!cb) return;
+                    cb.checked = !cb.checked;
+                    if (cb.checked) selectedTaskIds.add(tid);
+                    else selectedTaskIds.delete(tid);
+                    this.classList.toggle('selected', cb.checked);
+                    updateSelectAllState();
+                    updateCompleteOverlay();
+                });
+            });
+        }
+
+        function updateSelectAllState() {
+            const cbs = document.querySelectorAll(currentView === 'card' ? '.card-select-cb' : '.row-select-cb');
+            const allChecked = cbs.length > 0 && [...cbs].every(cb => cb.checked);
+            const someChecked = [...cbs].some(cb => cb.checked);
+            const selectAllCb = document.getElementById('selectAllCb');
+            if (selectAllCb) {
+                selectAllCb.checked = allChecked;
+                selectAllCb.indeterminate = someChecked && !allChecked;
+            }
+            const count = selectedTaskIds.size;
+            const countEl = document.getElementById('selectedCount');
+            if (countEl) {
+                if (count > 0) {
+                    countEl.textContent = `${count} selected`;
+                    countEl.classList.remove('hidden');
+                } else {
+                    countEl.classList.add('hidden');
+                }
+            }
+
+            // Show/hide unselect button
+            const clearBtn = document.getElementById('clearSelectionBtn');
+            if (clearBtn) {
+                if (count > 0) clearBtn.classList.remove('hidden'), clearBtn.classList.add('flex');
+                else clearBtn.classList.add('hidden'), clearBtn.classList.remove('flex');
+            }
+
+            updateCompleteOverlay();
+        }
+
+        document.getElementById('selectAllCb').addEventListener('change', function () {
+            const cbs = document.querySelectorAll(currentView === 'card' ? '.card-select-cb' : '.row-select-cb');
+            cbs.forEach(cb => {
+                cb.checked = this.checked;
+                const tid = cb.getAttribute('data-task-id');
+                if (this.checked) selectedTaskIds.add(tid);
+                else selectedTaskIds.delete(tid);
+                const item = currentView === 'card' 
+                    ? document.querySelector(`.task-card[data-task-id="${tid}"]`)
+                    : document.querySelector(`.task-row[data-task-id="${tid}"]`);
+                if (item) {
+                    item.classList.toggle('selected', this.checked);
+                    if (currentView === 'card') {
+                        item.classList.toggle('border-indigo-400', this.checked);
+                        item.classList.toggle('border-gray-100', !this.checked);
+                    }
+                }
+            });
+            updateSelectAllState();
+            updateCompleteOverlay();
+        });
+
+        function updateCompleteOverlay() {
+            const normUser = (currentUser || '').trim().toLowerCase();
+            const actionOverlay = document.getElementById('actionOverlay');
+            const completeBtn = document.getElementById('completeOverlayBtn');
+            const verifyBtn = document.getElementById('verifyOverlayBtn');
+
+            const count = selectedTaskIds.size;
+            const selectedTasks = allTasks.filter(t => selectedTaskIds.has(t._type + '_' + t['Task ID']));
+
+            // Tasks I can complete (must be pending)
+            const completableTasks = selectedTasks.filter(t => (t['Actual'] || '').trim() === '');
+            // Tasks I can verify (must be completed AND I must be the verifier AND not yet verified)
+            const verifiableTasks = selectedTasks.filter(t =>
+                (t['Actual'] || '').trim() !== '' &&
+                (t['Verified by'] || '').trim().toLowerCase() === normUser &&
+                !(t['Verified Timestamp'])
+            );
+
+            document.getElementById('overlayCount').textContent = completableTasks.length;
+            document.getElementById('verifyOverlayCount').textContent = verifiableTasks.length;
+
+            // Show/hide specific buttons
+            if (completableTasks.length > 0) {
+                completeBtn.classList.remove('hidden');
+                completeBtn.classList.add('flex');
+            } else {
+                completeBtn.classList.add('hidden');
+                completeBtn.classList.remove('flex');
+            }
+
+            if (verifiableTasks.length > 0) {
+                verifyBtn.classList.remove('hidden');
+                verifyBtn.classList.add('flex');
+            } else {
+                verifyBtn.classList.add('hidden');
+                verifyBtn.classList.remove('flex');
+            }
+
+            // Show/hide entire overlay
+            if (completableTasks.length > 0 || verifiableTasks.length > 0) {
+                actionOverlay.classList.add('visible');
+            } else {
+                actionOverlay.classList.remove('visible');
+            }
+        }
+
+        async function submitVerify() {
+    const btn = document.getElementById('verifyOverlayBtn');
+    const selectedTasks = allTasks.filter(t => selectedTaskIds.has(t._type + '_' + t['Task ID']));
+
+    const verifiableTaskIds = selectedTasks
+        .filter(t => (t['Actual'] || '').trim() !== '' && !t['Verified Timestamp'])
+        .map(t => t['Task ID']);
+
+    if (!verifiableTaskIds.length) {
+        showToast('No tasks eligible for verification', 'info');
+        return;
+    }
+
+    // Confirmation pop-up
+    const confirm = await Swal.fire({
+        title: 'Verify Tasks?',
+        text: `Mark ${verifiableTaskIds.length} task(s) as verified?`,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: 'Yes, Verify'
+    });
+    if (!confirm.isConfirmed) return;
+
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Verifying…';
+
+    // FIX: Yahan 'currentUser' ka naam pass karein
+    google.script.run
+        .withSuccessHandler(result => {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-check-double"></i> Verify Selected';
+            if (result.success) {
+                showToast(result.message);
+                selectedTaskIds.clear();
+                updateCompleteOverlay();
+                loadTasks(true); 
+            }
+        })
+        .verifyTasks(verifiableTaskIds, currentUser); // Yahan currentUser bheja hai
+}
+
+        // 5. Wire up the button (add alongside existing event listeners at the bottom)
+        document.getElementById('verifyOverlayBtn')?.addEventListener('click', submitVerify);
+
+        function viewRemarkHistory(compositeId) {
+            const task = allTasks.find(t => (t._type + '_' + t['Task ID']) === compositeId);
+            if (!task) return;
+
+            let history = [];
+            const rawRemark = task['Remark'];
+            if (rawRemark) {
+                try {
+                    history = JSON.parse(rawRemark);
+                    if (!Array.isArray(history)) {
+                        history = [{ time: 'Original', remark: String(rawRemark), status: '' }];
+                    }
+                } catch (e) {
+                    history = [{ time: 'Original', remark: String(rawRemark), status: '' }];
+                }
+            }
+
+            if (history.length === 0) {
+                Swal.fire({
+                    title: 'No History',
+                    text: 'No remarks have been recorded for this task yet.',
+                    icon: 'info',
+                    confirmButtonColor: '#6366f1'
+                });
+                return;
+            }
+
+            let timelineHTML = `<div class="text-left space-y-4 max-h-[350px] overflow-y-auto pr-1">`;
+            history.forEach((h, index) => {
+                const isLast = index === history.length - 1;
+                const statusPill = h.status && h.status !== 'No Change' 
+                    ? `<span class="bg-indigo-100 text-indigo-800 text-[10px] font-bold px-1.5 py-0.5 rounded-full ml-2">${h.status}</span>` 
+                    : '';
+                timelineHTML += `
+                    <div class="flex gap-3" style="margin-bottom: 12px;">
+                        <div class="flex flex-col items-center shrink-0">
+                            <div class="w-2.5 h-2.5 rounded-full ${isLast ? 'bg-indigo-600 ring-4 ring-indigo-100' : 'bg-gray-300'}" style="width: 10px; height: 10px; border-radius: 50%;"></div>
+                            ${!isLast ? '<div class="w-0.5 flex-1 bg-gray-200 my-1" style="width: 2px; flex: 1; background: #e2e8f0; margin-top: 4px; margin-bottom: 4px;"></div>' : ''}
+                        </div>
+                        <div class="bg-gray-50 border border-gray-100 rounded-xl p-3 flex-1 text-xs text-gray-700" style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px; flex: 1;">
+                            <div class="flex justify-between items-center mb-1.5 gap-2" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                                <span class="font-mono text-gray-400 text-[10px]" style="color: #94a3b8; font-family: monospace; font-size: 10px;">${h.time || ''}</span>
+                                <div class="flex items-center gap-1.5 shrink-0" style="display: flex; align-items: center; gap: 6px;">
+                                    ${h.user ? `<span class="bg-gray-200 text-gray-600 text-[9px] font-medium px-1.5 py-0.5 rounded" style="background: #e2e8f0; color: #475569; padding: 2px 6px; border-radius: 4px; font-size: 9px;"><i class="fas fa-user text-[8px] mr-1 text-gray-400" style="font-size: 8px; margin-right: 4px; color: #94a3b8;"></i>${escapeHtml(h.user)}</span>` : ''}
+                                    ${statusPill}
+                                </div>
+                            </div>
+                            <div class="font-semibold text-gray-800 break-words leading-relaxed" style="font-weight: 600; color: #1e293b; word-break: break-word; line-height: 1.5; font-size: 12px;">${escapeHtml(h.remark)}</div>
+                        </div>
+                    </div>`;
+            });
+            timelineHTML += `</div>`;
+
+            Swal.fire({
+                title: `<span class="text-lg font-bold text-gray-800 flex items-center gap-2" style="font-size: 18px; font-weight: 700; color: #1e293b; display: flex; align-items: center; gap: 8px;"><i class="fas fa-history text-indigo-500"></i> Remark Timeline</span>`,
+                html: timelineHTML,
+                showConfirmButton: true,
+                confirmButtonText: 'Close',
+                confirmButtonColor: '#4f46e5',
+                customClass: {
+                    popup: 'rounded-2xl shadow-xl'
+                }
+            });
+        }
+        window.viewRemarkHistory = viewRemarkHistory;
+
+        function setTaskActionMode(taskId, mode) {
+            const item = document.getElementById('item_' + taskId);
+            if (!item) return;
+
+            item.setAttribute('data-action-mode', mode);
+
+            const completeFields = document.getElementById('fields_complete_' + taskId);
+            const reviseFields = document.getElementById('fields_revise_' + taskId);
+
+            if (mode === 'complete') {
+                completeFields?.classList.remove('hidden');
+                reviseFields?.classList.add('hidden');
+            } else {
+                completeFields?.classList.add('hidden');
+                reviseFields?.classList.remove('hidden');
+            }
+
+            // Style buttons inside this specific card
+            const btns = item.querySelectorAll('.sidebar-task-toggle-btn');
+            btns.forEach(btn => {
+                const btnMode = btn.getAttribute('data-mode');
+                const icon = btn.querySelector('i');
+                if (btnMode === mode) {
+                    btn.className = "px-2.5 py-1 text-[9px] font-bold rounded bg-white border border-indigo-200 text-indigo-700 shadow-sm transition-all sidebar-task-toggle-btn";
+                    if (icon) {
+                        icon.className = btnMode === 'complete' ? "fas fa-check-circle mr-1 text-indigo-500" : "fas fa-calendar-alt mr-1 text-indigo-500";
+                    }
+                } else {
+                    btn.className = "px-2.5 py-1 text-[9px] font-bold rounded text-gray-500 hover:text-gray-700 transition-all sidebar-task-toggle-btn";
+                    if (icon) {
+                        icon.className = btnMode === 'complete' ? "fas fa-check-circle mr-1 text-gray-400" : "fas fa-calendar-alt mr-1 text-gray-400";
+                    }
+                }
+            });
+        }
+        window.setTaskActionMode = setTaskActionMode;
+
+      function openCompleteSidebar(defaultMode = 'complete') {
+            const selectedTasks = allTasks.filter(t => selectedTaskIds.has(t._type + '_' + t['Task ID']));
+            if (!selectedTasks.length) return;
+
+            const content = document.getElementById('sidebarContent');
+            uploadedFiles = {};
+
+            let taskItems = selectedTasks.map(task => {
+                const proofReq = task['Proof is Required'] === 'Yes';
+                const taskId = task['Task ID'] || '';
+                const taskDesc = task['Task Description'] || '—';
+                const assignedTo = task.Name || '—';
+                
+                // Determine initial action mode (defaultMode if single selection, else complete)
+                const initialMode = (selectedTasks.length === 1) ? defaultMode : 'complete';
+
+                // Safe HTML string generation to eliminate nested backticks
+                const actionToggleHtml = '<div class="bg-slate-100 p-0.5 rounded-lg flex shrink-0 border border-slate-200" style="height:fit-content">' +
+                    '<button type="button" class="px-2 py-0.5 text-[9px] font-bold rounded sidebar-task-toggle-btn transition-all" data-mode="complete" onclick="setTaskActionMode(\'' + escapeHtml(taskId) + '\', \'complete\')">' +
+                        '<i class="fas fa-check-circle mr-1"></i>Complete' +
+                    '</button>' +
+                    '<button type="button" class="px-2 py-0.5 text-[9px] font-bold rounded sidebar-task-toggle-btn transition-all" data-mode="revise" onclick="setTaskActionMode(\'' + escapeHtml(taskId) + '\', \'revise\')">' +
+                        '<i class="fas fa-calendar-alt mr-1"></i>Revise' +
+                    '</button>' +
+                '</div>';
+
+                return `
+                <div class="p-4 bg-white rounded-xl border border-gray-150 shadow-sm space-y-3.5 mb-4 task-sidebar-item" data-task-id="${escapeHtml(taskId)}" data-action-mode="${initialMode}" id="item_${escapeHtml(taskId)}">
+                    
+                    <!-- Title & Header Block -->
+                    <div class="flex justify-between items-start gap-3">
+                        <div class="space-y-0.5">
+                            <label class="text-[9px] font-bold text-gray-400 uppercase tracking-wider">Task Description</label>
+                            <div class="text-xs font-bold text-gray-800 leading-snug">${escapeHtml(taskDesc)}</div>
+                            <div class="text-[9px] text-gray-400 font-mono">ID: ${escapeHtml(taskId)} | Doer: ${escapeHtml(assignedTo)}</div>
+                        </div>
+                        
+                        <!-- Individual Action Selector Toggle -->
+                        ${actionToggleHtml}
+                    </div>
+                    
+                    <!-- Section A: Complete Fields -->
+                    <div id="fields_complete_${escapeHtml(taskId)}" class="space-y-3 pt-2.5 border-t border-dashed border-gray-100">
+                        <div class="flex justify-between items-center gap-4 bg-slate-50 px-2.5 py-2 rounded-lg border border-slate-100">
+                            <span class="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Proof of Completion:</span>
+                            <div class="flex flex-col items-end gap-1">
+                                    <div class="upload-zone relative shrink-0" id="zone_${escapeHtml(taskId)}" data-task-id="${escapeHtml(taskId)}">
+                                        <input type="file" id="file_${escapeHtml(taskId)}" class="hidden" accept="*/*" data-task-id="${escapeHtml(taskId)}">
+                                        <button type="button" class="flex items-center gap-1 px-2 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded border border-indigo-100 transition-all">
+                                            <i class="fas fa-paperclip text-[10px]"></i>
+                                            <span class="text-[9px] font-bold">Attach Proof</span>
+                                        </button>
+                                        <div id="status_${escapeHtml(taskId)}" class="text-[9px] font-bold ${proofReq ? 'text-amber-600' : 'text-emerald-600'} mt-0.5 text-right italic">${proofReq ? 'Required (Goes for Review)' : 'Optional (Auto-Verifies)'}</div>
+                                        <div id="name_${escapeHtml(taskId)}" class="text-[9px] text-gray-500 max-w-[120px] truncate mt-0.5 text-right"></div>
+                                    </div>
+                            </div>
+                        </div>
+                        <div class="space-y-1">
+                            <label class="block text-[9px] font-bold text-gray-400 uppercase tracking-wider">Completion Remark</label>
+                            <textarea id="remark_complete_${escapeHtml(taskId)}" rows="2" class="w-full border border-gray-200 rounded-lg p-2 text-xs focus:ring-1 focus:ring-indigo-300 outline-none resize-none bg-slate-50" placeholder="Type comments/remarks..."></textarea>
+                        </div>
+                    </div>
+                    
+                    <!-- Section B: Revise Fields -->
+                    <div id="fields_revise_${escapeHtml(taskId)}" class="space-y-3 pt-2.5 border-t border-dashed border-gray-100 hidden">
+                        <div>
+                            <label class="block text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1"><i class="far fa-calendar-alt text-indigo-500 mr-1"></i>New Revised Date & Time *</label>
+                            <input id="date_revise_${escapeHtml(taskId)}" type="datetime-local" class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:ring-1 focus:ring-indigo-300 outline-none bg-slate-50 font-semibold text-gray-800">
+                        </div>
+                        <div>
+                            <label class="block text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1"><i class="fas fa-comment-dots text-indigo-500 mr-1"></i>Revision Reason *</label>
+                            <textarea id="remark_revise_${escapeHtml(taskId)}" rows="2" class="w-full border border-gray-200 rounded-lg p-2 text-xs focus:ring-1 focus:ring-indigo-300 outline-none resize-none bg-slate-50" placeholder="Specify why the date is being revised..."></textarea>
+                        </div>
+                    </div>
+                </div>`;
+            }).join('');
+
+            content.innerHTML = `
+            <div class="mb-4">
+                <h3 class="text-sm font-bold text-gray-800">Action Manager (${selectedTasks.length} Selected)</h3>
+                <p class="text-xs text-gray-500">Configure actions and remarks for each task individually below.</p>
+            </div>
+            <div class="space-y-4">
+                ${taskItems}
+            </div>
+            `;
+
+            // Reset submit button text
+            const submitBtn = document.getElementById('submitCompleteBtn');
+            if (submitBtn) {
+                submitBtn.innerHTML = '<i class="fas fa-check-circle mr-1.5"></i> Submit Actions';
+            }
+
+            // Sync initial action modes styling for each card
+            selectedTasks.forEach(task => {
+                const taskId = task['Task ID'] || '';
+                const initialMode = (selectedTasks.length === 1) ? defaultMode : 'complete';
+                setTaskActionMode(taskId, initialMode);
+            });
+
+            // Wire upload zones via JS
+            document.querySelectorAll('.upload-zone').forEach(zone => {
+                const tid = zone.getAttribute('data-task-id');
+                const fileInput = document.getElementById('file_' + tid);
+                if (!fileInput) return;
+
+                zone.addEventListener('click', (e) => {
+                    if (e.target.tagName !== 'INPUT') fileInput.click();
+                });
+
+                fileInput.addEventListener('change', function () {
+                    const file = this.files[0];
+                    if (!file) return;
+
+                    if (file.size > 15 * 1024 * 1024) {
+                        showToast('File too large (max 15MB)', 'error');
+                        this.value = '';
+                        return;
+                    }
+
+                    const statusEl = document.getElementById('status_' + tid);
+                    const nameEl = document.getElementById('name_' + tid);
+                    const btn = zone.querySelector('button');
+
+                    if (statusEl) {
+                        statusEl.textContent = '✓ Ready to Upload';
+                        statusEl.className = 'text-[9px] font-bold text-emerald-600 mt-0.5 text-right';
+                    }
+                    if (nameEl) nameEl.textContent = file.name;
+                    if (btn) {
+                        btn.className = "flex items-center gap-1 px-2 py-1 bg-emerald-50 text-emerald-600 rounded border border-emerald-100 transition-all";
+                        btn.innerHTML = '<i class="fas fa-check text-[10px]"></i> <span class="text-[9px] font-bold">Attached</span>';
+                    }
+                    uploadedFiles[tid] = file;
+                });
+            });
+
+            document.getElementById('completeSidebar').classList.add('open');
+            document.getElementById('sidebarBackdrop').classList.add('open');
+        }
+
+        function closeCompleteSidebar() {
+            document.getElementById('completeSidebar').classList.remove('open');
+            document.getElementById('sidebarBackdrop').classList.remove('open');
+        }
+
+       // ── Submit Complete / Revise Batch ───────────────────────────────────────────
+async function submitComplete() {
+    const btn = document.getElementById('submitCompleteBtn');
+    const selectedTasks = allTasks.filter(t => selectedTaskIds.has(t._type + '_' + t['Task ID']));
+    if (!selectedTasks.length) return;
+
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Submitting…';
+
+    let timestamp = '';
+    let dateOnly = '';
+    try {
+        const dt = new Date();
+        const day = String(dt.getDate()).padStart(2, '0');
+        const mon = dt.toLocaleString('en-IN', { month: 'short' });
+        const yr  = String(dt.getFullYear()).slice(-2);
+        const hh  = String(dt.getHours()).padStart(2, '0');
+        const mm  = String(dt.getMinutes()).padStart(2, '0');
+        timestamp = `${day} ${mon} ${yr} ${hh}:${mm}:00`;
+        dateOnly  = `${day} ${mon} ${yr}`;
+    } catch (e) {
+        timestamp = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
+        dateOnly  = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: '2-digit' });
+    }
+
+    try {
+        // Group updates
+        const completeUpdates = [];
+        const reviseUpdates = [];
+
+        for (const task of selectedTasks) {
+            const taskId = task['Task ID'];
+
+            // Dynamically read action mode for both Delegation and Checklist
+            let mode = 'complete';
+            const item = document.getElementById('item_' + taskId);
+            if (item) {
+                mode = item.getAttribute('data-action-mode') || 'complete';
+            }
+
+            if (mode === 'complete') {
+                // Validate proof
+                if (task['Proof is Required'] === 'Yes' && !uploadedFiles[taskId]) {
+                    showToast(`Please upload proof for task: ${taskId}`, 'warning');
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fas fa-check-circle mr-1.5"></i> Submit Actions';
+                    return;
+                }
+
+                let documentLink = '';
+                if (uploadedFiles[taskId]) {
+                    const groupId = task['Group ID'] || '';
+                    documentLink = await uploadFileToServer(uploadedFiles[taskId], taskId, groupId);
+                }
+
+                const remarkVal = document.getElementById('remark_complete_' + taskId)?.value.trim() || '';
+
+                completeUpdates.push({
+                    taskId,
+                    documentLink,
+                    actualTimestamp: (task._type === 'checklist') ? dateOnly : timestamp,
+                    remark: remarkVal,
+                    user: currentUser,
+                    _type: task._type
+                });
+            } else {
+                // Revise mode
+                const revisedDateVal = document.getElementById('date_revise_' + taskId)?.value;
+                const remarkVal = document.getElementById('remark_revise_' + taskId)?.value.trim();
+
+                if (!revisedDateVal) {
+                    showToast(`Please select a Revised Date & Time for task: ${taskId}`, 'warning');
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fas fa-check-circle mr-1.5"></i> Submit Actions';
+                    return;
+                }
+                if (!remarkVal) {
+                    showToast(`Please specify a Revision Reason for task: ${taskId}`, 'warning');
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fas fa-check-circle mr-1.5"></i> Submit Actions';
+                    return;
+                }
+
+                let formattedRevisedDate = revisedDateVal;
+                try {
+                    const dt = new Date(revisedDateVal);
+                    if (!isNaN(dt.getTime())) {
+                        const day = String(dt.getDate()).padStart(2, '0');
+                        const mon = dt.toLocaleString('en-IN', { month: 'short' });
+                        const yr  = String(dt.getFullYear()).slice(-2);
+                        const hh  = String(dt.getHours()).padStart(2, '0');
+                        const mm  = String(dt.getMinutes()).padStart(2, '0');
+                        formattedRevisedDate = `${day} ${mon} ${yr} ${hh}:${mm}:00`;
+                    }
+                } catch(e) {}
+
+                reviseUpdates.push({
+                    taskId,
+                    revisedDate: formattedRevisedDate,
+                    remark: remarkVal,
+                    user: currentUser,
+                    timestamp: timestamp,
+                    _type: task._type // Identify category during API routing
+                });
+            }
+        }
+
+        // Route updates dynamically to correct Apps Script functions
+        const promises = [];
+        const delegationCompletes = completeUpdates.filter(u => u._type === 'delegation');
+        const checklistCompletes  = completeUpdates.filter(u => u._type === 'checklist');
+        const delegationRevises   = reviseUpdates.filter(u => u._type === 'delegation');
+        const checklistRevises    = reviseUpdates.filter(u => u._type === 'checklist');
+
+        if (delegationCompletes.length > 0) {
+            promises.push(new Promise((resolve, reject) => {
+                google.script.run
+                    .withSuccessHandler(res => resolve(res))
+                    .withFailureHandler(err => reject(err))
+                    .completeDelegationTasks(delegationCompletes);
+            }));
+        }
+        if (checklistCompletes.length > 0) {
+            promises.push(new Promise((resolve, reject) => {
+                google.script.run
+                    .withSuccessHandler(res => resolve(res))
+                    .withFailureHandler(err => reject(err))
+                    .completeTasks(checklistCompletes);
+            }));
+        }
+        if (delegationRevises.length > 0) {
+            promises.push(new Promise((resolve, reject) => {
+                google.script.run
+                    .withSuccessHandler(res => resolve(res))
+                    .withFailureHandler(err => reject(err))
+                    .reviseDelegationTasks(delegationRevises);
+            }));
+        }
+        if (checklistRevises.length > 0) {
+            promises.push(new Promise((resolve, reject) => {
+                google.script.run
+                    .withSuccessHandler(res => resolve(res))
+                    .withFailureHandler(err => reject(err))
+                    .reviseChecklistTasks(checklistRevises);
+            }));
+        }
+
+        if (promises.length === 0) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-check-circle mr-1.5"></i> Submit Actions';
+            return;
+        }
+
+        const results = await Promise.all(promises);
+
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-check-circle mr-1.5"></i> Submit Actions';
+
+        const failed = results.find(r => !r.success);
+        if (failed) {
+            showToast('Submission failed: ' + failed.message, 'error');
+        } else {
+            showToast('All actions submitted successfully!');
+            closeCompleteSidebar();
+            selectedTaskIds.clear();
+            uploadedFiles = {};
+            updateCompleteOverlay();
+            loadTasks(true); // Silent refresh
+        }
+
+    } catch (err) {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-check-circle mr-1.5"></i> Submit Actions';
+        showToast('Error: ' + err.message, 'error');
+    }
+}       
+ function uploadFileToServer(file, taskId, groupId) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = function (e) {
+                    const base64 = e.target.result.split(',')[1];
+                    const mimeType = file.type || 'application/octet-stream';
+                    // We create a blob descriptor to pass to Apps Script
+                    // Google Apps Script expects a BlobSource; we pass name, data, mime
+                    google.script.run
+                        .withSuccessHandler(result => {
+                            if (result.success) resolve(result.fileUrl);
+                            else reject(new Error(result.message));
+                        })
+                        .withFailureHandler(err => reject(err))
+                        .uploadTaskDocument(
+                            // Can't pass File directly; use base64 approach via a helper
+                            // Apps Script side receives this and reconstructs the blob
+                            { name: file.name, data: base64, mimeType },
+                            taskId, groupId, PROOF_FOLDER_ID
+                        );
+                };
+                reader.onerror = () => reject(new Error('File read failed'));
+                reader.readAsDataURL(file);
+            });
+        }
+
+        // ── Pagination ─────────────────────────────────────────────────────────
+        function renderPagination(totalItems, totalPages) {
+            const pgBar = document.getElementById('paginationBar');
+            const pgControls = document.getElementById('pgControls');
+            if (!pgBar) return;
+
+            pgBar.classList.remove('hidden');
+            if (pgControls) {
+                if (totalPages <= 1) pgControls.classList.add('hidden');
+                else pgControls.classList.remove('hidden');
+            }
+            const start = (currentPage - 1) * pageSize + 1;
+            const end = Math.min(currentPage * pageSize, totalItems);
+            document.getElementById('paginationInfo').textContent = `Showing ${start}–${end} of ${totalItems} tasks`;
+
+            const pgNumbers = document.getElementById('pgNumbers');
+            pgNumbers.innerHTML = '';
+            let s = Math.max(1, currentPage - 2);
+            let e = Math.min(totalPages, s + 4);
+            if (e - s < 4) s = Math.max(1, e - 4);
+            for (let p = s; p <= e; p++) {
+                const btn = document.createElement('button');
+                btn.textContent = p;
+                btn.className = `w-7 h-7 rounded-lg text-xs font-semibold border transition ${p === currentPage ? 'bg-indigo-600 text-white border-indigo-600 shadow' : 'bg-white text-gray-600 border-gray-200 hover:bg-indigo-50 hover:border-indigo-300'}`;
+                btn.addEventListener('click', () => { currentPage = p; renderCards(); });
+                pgNumbers.appendChild(btn);
+            }
+            const pgFirst = document.getElementById('pgFirst'), pgPrev = document.getElementById('pgPrev');
+            const pgNext = document.getElementById('pgNext'), pgLast = document.getElementById('pgLast');
+            pgFirst.disabled = pgPrev.disabled = currentPage === 1;
+            pgNext.disabled = pgLast.disabled = currentPage === totalPages;
+            pgFirst.onclick = () => { currentPage = 1; renderCurrentView(); };
+            pgPrev.onclick = () => { if (currentPage > 1) { currentPage--; renderCurrentView(); } };
+            pgNext.onclick = () => { if (currentPage < totalPages) { currentPage++; renderCurrentView(); } };
+            pgLast.onclick = () => { currentPage = totalPages; renderCurrentView(); };
+        }
+
+        // ── Filter helpers ─────────────────────────────────────────────────────
+        function buildNameCheckboxes() {
+            const names = [...new Set(allTasks.map(t => t.Name).filter(n => n))].sort();
+            const container = document.getElementById('nameCheckboxList');
+            if (!container) return;
+            const query = (document.getElementById('searchName')?.value || '').toLowerCase();
+            const filtered = names.filter(n => n.toLowerCase().includes(query));
+            if (!filtered.length) { container.innerHTML = '<p class="text-xs text-gray-400 p-3 text-center">No matches</p>'; return; }
+            container.innerHTML = filtered.map(n => `
+          <label class="flex items-center gap-2.5 px-3 py-2 hover:bg-white cursor-pointer transition">
+            <input type="checkbox" class="name-cb accent-indigo-600 w-3.5 h-3.5" value="${escapeHtml(n)}" ${filterNames.includes(n) ? 'checked' : ''}>
+            <span class="text-sm text-gray-700">${escapeHtml(n)}</span>
+          </label>`).join('');
+        }
+        function buildVerifierCheckboxes() {
+            const verifiers = [...new Set(allTasks.map(t => t['Verified by']).filter(v => v && v.trim()))].sort();
+            const container = document.getElementById('verifiedCheckboxList');
+            if (!container) return;
+            const query = (document.getElementById('searchVerifier')?.value || '').toLowerCase();
+            const filtered = verifiers.filter(v => v.toLowerCase().includes(query));
+            if (!filtered.length) { container.innerHTML = '<p class="text-xs text-gray-400 p-3 text-center">No verifiers found</p>'; return; }
+            container.innerHTML = filtered.map(v => `
+          <label class="flex items-center gap-2.5 px-3 py-2 hover:bg-white cursor-pointer transition">
+            <input type="checkbox" class="verified-cb accent-indigo-600 w-3.5 h-3.5" value="${escapeHtml(v)}" ${filterVerified.includes(v) ? 'checked' : ''}>
+            <span class="text-sm text-gray-700">${escapeHtml(v)}</span>
+          </label>`).join('');
+        }
+        function buildStatusCheckboxes() {
+            const container = document.getElementById('statusCheckboxList');
+            if (!container) return;
+            container.innerHTML = `
+          <label class="flex items-center gap-2.5 px-3 py-2 hover:bg-white cursor-pointer transition"><input type="checkbox" class="status-cb accent-indigo-600 w-3.5 h-3.5" value="pending" ${filterStatus.includes('pending') ? 'checked' : ''}><span class="text-sm text-gray-700">Pending (Actual empty)</span></label>
+          <label class="flex items-center gap-2.5 px-3 py-2 hover:bg-white cursor-pointer transition"><input type="checkbox" class="status-cb accent-indigo-600 w-3.5 h-3.5" value="completed" ${filterStatus.includes('completed') ? 'checked' : ''}><span class="text-sm text-gray-700">Completed (Actual not empty)</span></label>`;
+        }
+        function updateFilterBadge() {
+            const total = filterNames.length + filterFreqs.length + filterVerified.length + filterStatus.length;
+            const badge = document.getElementById('filterBadge');
+            total ? (badge.textContent = total, badge.classList.remove('hidden')) : badge.classList.add('hidden');
+        }
+        function readFilterPanel() {
+            filterNames = [...document.querySelectorAll('.name-cb:checked')].map(cb => cb.value);
+            filterFreqs = [...document.querySelectorAll('.freq-cb:checked')].map(cb => cb.value);
+            filterVerified = [...document.querySelectorAll('.verified-cb:checked')].map(cb => cb.value);
+            filterStatus = [...document.querySelectorAll('.status-cb:checked')].map(cb => cb.value);
+        }
+
+        // ── Export CSV ─────────────────────────────────────────────────────────
+        function exportToCSV() {
+            if (!filteredTasks.length) { showToast('No data to export', 'warning'); return; }
+            const cols = ['Created At', 'Group ID', 'Email', 'Name', 'Task ID', 'Frequency', 'Task Description', 'Due Date', 'Proof is Required', 'Verified by', 'Verified', 'Verified Timestamp', 'Actual', 'Document', 'Remark'];
+            const rows = [cols.join(',')];
+            filteredTasks.forEach(t => {
+                rows.push(cols.map(c => {
+                    let v = t[c] != null ? String(t[c]) : '';
+                    v = v.replace(/"/g, '""');
+                    if (v.includes(',') || v.includes('"') || v.includes('\n')) v = `"${v}"`;
+                    return v;
+                }).join(','));
+            });
+            const blob = new Blob([rows.join('\n')], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = `tasks_export_${new Date().toISOString().slice(0, 10)}.csv`;
+            a.click(); URL.revokeObjectURL(url);
+            showToast('Exported successfully');
+        }
+
+        // ── Load data ──────────────────────────────────────────────────────────
+        let isLoading = false;
+        function loadTasks(silent = false) {
+            if (isLoading) return;
+            isLoading = true;
+            if (!silent) {
+                document.getElementById('cardsContainer').innerHTML = `<div class="col-span-full text-center py-16 text-gray-400"><i class="fas fa-spinner fa-pulse text-2xl mb-2 block"></i><span class="text-sm">Loading tasks...</span></div>`;
+            }
+
+            let checklistLoaded = false;
+            let delegationLoaded = false;
+            let checklistRaw = [];
+            let delegationRaw = [];
+
+            function checkAllDone() {
+                if (checklistLoaded && delegationLoaded) {
+                    isLoading = false;
+                    
+                    const checklistTasks = checklistRaw.map(t => ({ 
+                        ...t, 
+                        _type: 'checklist',
+                        'Proof is Required': t['Proof is Required'] || 'No'
+                    }));
+
+                    const delegationTasks = delegationRaw.map(t => ({
+                        'Task ID': t['Task Id'] || t['Task ID'] || '',
+                        'Name': t['Delegetee'] || t['Delegatee'] || '',
+                        'Frequency': t['Frequency'] || 'Once',
+                        'Task Description': (t['Task Title'] ? `[${t['Task Title']}] ` : '') + (t['Task'] || t['Task Description'] || ''),
+                        'Due Date': t['Due Date'] || '',
+                        'Actual': t['Completion Time'] || t['Actual'] || '',
+                        'Verified by': t['Delegator'] || t['Verified by'] || '',
+                        'Verified Timestamp': t['Verified Timestamp'] || '',
+                        'Document': t['Proof'] || t['Document'] || '',
+                        'Remark': t['Remark'] || '',
+                        'Revised Date': t['Revised Date'] || '',
+                        'Created At': t['Creation Time'] || t['Created At'] || '',
+                        'Proof is Required': (t['Proof Required'] || t['Proof is Required']) === 'Yes' ? 'Yes' : 'No',
+                        'Approval Required': t['Approval Required'] || 'No',
+                        'Status': t['Status'] || '',
+                        'Sub Monitoring': t['Sub Monitoring'] || '',
+                        '_type': 'delegation'
+                    }));
+
+                    allTasks = [...checklistTasks, ...delegationTasks];
+                    
+                    buildVerifierCheckboxes();
+                    buildStatusCheckboxes();
+                    applyFiltersAndRender();
+                }
+            }
+
+            // Fetch checklist data
+            google.script.run
+                .withSuccessHandler(data => {
+                    checklistRaw = Array.isArray(data) ? data : [];
+                    checklistLoaded = true;
+                    checkAllDone();
+                })
+                .withFailureHandler(err => {
+                    console.error("Checklist load fail", err);
+                    checklistLoaded = true;
+                    checkAllDone();
+                })
+                .getChecklistData();
+
+            // Fetch delegation data
+            google.script.run
+                .withSuccessHandler(data => {
+                    delegationRaw = Array.isArray(data) ? data : [];
+                    delegationLoaded = true;
+                    checkAllDone();
+                })
+                .withFailureHandler(err => {
+                    console.error("Delegation load fail", err);
+                    delegationLoaded = true;
+                    checkAllDone();
+                })
+                .getDelegationData();
+        }
+
+        // ── Tab switching ──────────────────────────────────────────────────────
+        function switchTab(tab) {
+            currentTab = tab;
+            const delegBtn = document.getElementById('tabDelegation');
+            const checkBtn = document.getElementById('tabChecklist');
+            [delegBtn, checkBtn].forEach(btn => {
+                btn.classList.remove('bg-white', 'text-indigo-700', 'border-b-2', 'border-indigo-500', 'shadow-sm');
+                btn.classList.add('text-gray-500');
+            });
+            const activeBtn = tab === 'delegation' ? delegBtn : checkBtn;
+            activeBtn.classList.add('bg-white', 'text-indigo-700', 'border-b-2', 'border-indigo-500', 'shadow-sm');
+            activeBtn.classList.remove('text-gray-500');
+            document.getElementById('countDelegation').className = `inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-xs font-bold ${tab === 'delegation' ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-500'}`;
+            document.getElementById('countChecklist').className = `inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-xs font-bold ${tab === 'checklist' ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-500'}`;
+            const todayTomorrowBadge =
+    document.getElementById('todayTomorrowOnlyBadge');
+
+if (todayTomorrowBadge) {
+
+    if (tab === 'checklist') {
+
+        todayTomorrowBadge.classList.remove('hidden');
+
+    } else {
+
+        todayTomorrowBadge.classList.add('hidden');
+
+    }
+}
+            currentQuickFilter = null;
+            currentPage = 1;
+            selectedTaskIds.clear();
+            applyFiltersAndRender();
+        }
+
+        // ── Quick filters ──────────────────────────────────────────────────────
+        function setQuickFilter(type) {
+            currentQuickFilter = currentQuickFilter === type ? null : type;
+            currentPage = 1;
+            applyFiltersAndRender();
+            
+            const dBtn = document.getElementById('quickDelayed');
+            const tBtn = document.getElementById('quickToday');
+            
+            if (currentQuickFilter === 'delayed') {
+                dBtn.className = "bg-red-600 text-white border-red-700 px-3 py-1.5 rounded-xl text-xs font-bold shadow-md transition-all";
+                tBtn.className = "bg-white hover:bg-blue-50 text-blue-600 border border-blue-200 px-3 py-1.5 rounded-xl text-xs font-medium shadow-sm transition-all";
+            } else if (currentQuickFilter === 'today') {
+                tBtn.className = "bg-blue-600 text-white border-blue-700 px-3 py-1.5 rounded-xl text-xs font-bold shadow-md transition-all";
+                dBtn.className = "bg-white hover:bg-red-50 text-red-600 border border-red-200 px-3 py-1.5 rounded-xl text-xs font-medium shadow-sm transition-all";
+            } else {
+                dBtn.className = "bg-white hover:bg-red-50 text-red-600 border border-red-200 px-3 py-1.5 rounded-xl text-xs font-medium shadow-sm transition-all";
+                tBtn.className = "bg-white hover:bg-blue-50 text-blue-600 border border-blue-200 px-3 py-1.5 rounded-xl text-xs font-medium shadow-sm transition-all";
+            }
+        }
+
+        // ── Event Listeners ────────────────────────────────────────────────────
+        document.getElementById('tabDelegation')?.addEventListener('click', () => switchTab('delegation'));
+        document.getElementById('tabChecklist')?.addEventListener('click', () => switchTab('checklist'));
+        document.getElementById('quickDelayed')?.addEventListener('click', () => setQuickFilter('delayed'));
+        document.getElementById('quickToday')?.addEventListener('click', () => setQuickFilter('today'));
+
+        function openFilterModal() {
+            buildNameCheckboxes();
+            buildVerifierCheckboxes();
+            buildStatusCheckboxes();
+            document.getElementById('filterModal').classList.remove('hidden');
+            setTimeout(() => document.getElementById('filterSlidePanel').style.transform = 'translateX(0)', 10);
+        }
+        function closeFilterModal() {
+            document.getElementById('filterSlidePanel').style.transform = '';
+            setTimeout(() => document.getElementById('filterModal').classList.add('hidden'), 300);
+        }
+
+        document.getElementById('openFilterBtn')?.addEventListener('click', openFilterModal);
+        document.getElementById('closeFilterModal')?.addEventListener('click', closeFilterModal);
+        document.getElementById('filterModal')?.addEventListener('click', e => { if (e.target === e.currentTarget) closeFilterModal(); });
+        document.getElementById('applyFiltersBtn')?.addEventListener('click', () => {
+            readFilterPanel();
+            currentQuickFilter = null;
+            currentPage = 1;
+            applyFiltersAndRender();
+            closeFilterModal();
+        });
+       document.getElementById('clearAllFiltersBtn')?.addEventListener('click', () => {
+            filterNames = []; filterFreqs = []; filterVerified = []; filterStatus = ['pending']; 
+            
+          
+            document.getElementById('filterFromDate').value = '';
+            document.getElementById('filterToDate').value = '';
+
+            document.querySelectorAll('.name-cb, .freq-cb, .verified-cb, .status-cb').forEach(cb => cb.checked = false);
+            currentQuickFilter = null;
+            currentPage = 1;
+            applyFiltersAndRender();
+            closeFilterModal();
+        });
+        document.querySelectorAll('.clearSection').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const s = btn.getAttribute('data-section');
+                if (s === 'name') { filterNames = []; buildNameCheckboxes(); }
+                if (s === 'freq') { filterFreqs = []; document.querySelectorAll('.freq-cb').forEach(cb => cb.checked = false); }
+                if (s === 'verified') { filterVerified = []; buildVerifierCheckboxes(); }
+                if (s === 'status') { filterStatus = []; buildStatusCheckboxes(); }
+            });
+        });
+        document.getElementById('searchName')?.addEventListener('input', buildNameCheckboxes);
+        document.getElementById('searchVerifier')?.addEventListener('input', buildVerifierCheckboxes);
+        document.getElementById('exportBtn')?.addEventListener('click', exportToCSV);
+        document.getElementById('pgSize')?.addEventListener('change', e => { pageSize = parseInt(e.target.value); currentPage = 1; renderCurrentView(); });
+
+        // View Toggles
+        document.getElementById('viewCardBtn')?.addEventListener('click', function() {
+            if (currentView === 'card') return;
+            currentView = 'card';
+            this.classList.add('active');
+            document.getElementById('viewTableBtn').classList.remove('active');
+            renderCurrentView();
+        });
+        document.getElementById('viewTableBtn')?.addEventListener('click', function() {
+            if (currentView === 'table') return;
+            currentView = 'table';
+            this.classList.add('active');
+            document.getElementById('viewCardBtn').classList.remove('active');
+            renderCurrentView();
+        });
+
+        // ── Init ───────────────────────────────────────────────────────────────
+        initRoleSwitcher();
+        loadTasks();
+
+         const maxTodayStr = new Date().toISOString().split('T')[0];
+  const fromInput = document.getElementById('filterFromDate');
+  const toInput = document.getElementById('filterToDate');
+  if (fromInput) fromInput.max = maxTodayStr;
+  if (toInput) toInput.max = maxTodayStr;
+
+        // ── Fix: wire overlay + sidebar buttons via JS (not inline onclick) ────────
+        document.getElementById('completeOverlayBtn')?.addEventListener('click', openCompleteSidebar);
+        document.getElementById('closeSidebarBtn')?.addEventListener('click', closeCompleteSidebar);
+        document.getElementById('sidebarBackdrop')?.addEventListener('click', closeCompleteSidebar);
+        document.getElementById('cancelSidebarBtn')?.addEventListener('click', closeCompleteSidebar);
+        document.getElementById('submitCompleteBtn')?.addEventListener('click', submitComplete);
+
+        // ── Fix: click anywhere on card to toggle selection ────────────────────────
+        function attachCardClickHandlers() {
+            document.querySelectorAll('.task-card').forEach(card => {
+                card.style.cursor = 'pointer';
+                card.addEventListener('click', function (e) {
+                    // Don't double-fire if they clicked the checkbox directly
+                    if (e.target.classList.contains('card-select-cb')) return;
+                    const tid = this.getAttribute('data-task-id');
+                    if (!tid) return;
+                    const cb = this.querySelector('.card-select-cb');
+                    if (!cb) return;
+                    cb.checked = !cb.checked;
+                    if (cb.checked) selectedTaskIds.add(tid);
+                    else selectedTaskIds.delete(tid);
+                    this.classList.toggle('selected', cb.checked);
+                    this.classList.toggle('border-indigo-400', cb.checked);
+                    this.classList.toggle('border-gray-100', !cb.checked);
+                    updateSelectAllState();
+                    updateCompleteOverlay();
+                });
+            });
+        }
+
+
+        document.getElementById('clearSelectionBtn')?.addEventListener('click', () => {
+            selectedTaskIds.clear();
+            const cbs = document.querySelectorAll(currentView === 'card' ? '.card-select-cb' : '.row-select-cb');
+            cbs.forEach(cb => {
+                cb.checked = false;
+                const tid = cb.getAttribute('data-task-id');
+                const item = currentView === 'card' 
+                    ? document.querySelector(`.task-card[data-task-id="${tid}"]`)
+                    : document.querySelector(`.task-row[data-task-id="${tid}"]`);
+                if (item) {
+                    item.classList.remove('selected', 'border-indigo-400');
+                    if (currentView === 'card') item.classList.add('border-gray-100');
+                }
+            });
+            updateSelectAllState();
+            updateCompleteOverlay();
+        });
+
+        function triggerRowAction(compositeId, actionType) {
+            selectedTaskIds.clear();
+            selectedTaskIds.add(compositeId);
+            
+            const cbs = document.querySelectorAll('.row-select-cb, .card-select-cb');
+            cbs.forEach(cb => {
+                const tid = cb.getAttribute('data-task-id');
+                cb.checked = (tid === compositeId);
+                const item = document.querySelector(`.task-card[data-task-id="${tid}"], .task-row[data-task-id="${tid}"]`);
+                if (item) {
+                    item.classList.toggle('selected', cb.checked);
+                    item.classList.toggle('border-indigo-400', cb.checked);
+                    if (item.classList.contains('task-card')) {
+                        item.classList.toggle('border-gray-100', !cb.checked);
+                    }
+                }
+            });
+            
+            updateSelectAllState();
+            updateCompleteOverlay();
+            
+            openCompleteSidebar(actionType);
+        }
+        window.triggerRowAction = triggerRowAction;
+          function parseDateTimeString(str) {
+    if (!str) return null;
+    let d = new Date(str);
+    if (!isNaN(d.getTime())) return d;
+    
+    try {
+      const parts = String(str).trim().split(/\s+/);
+      if (parts.length >= 3) {
+        const day = parseInt(parts[0]);
+        const monthStr = parts[1];
+        const yearStr = parts[2];
+        
+        const monthNames = {
+          jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
+          jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11
+        };
+        const month = monthNames[monthStr.toLowerCase().substring(0, 3)];
+        if (month === undefined) return null;
+        let year = parseInt(yearStr);
+        if (year < 100) year += 2000;
+        
+        let hrs = 0, mins = 0, secs = 0;
+        if (parts[3]) {
+          const timeParts = parts[3].split(':');
+          hrs = parseInt(timeParts[0] || 0);
+          mins = parseInt(timeParts[1] || 0);
+          secs = parseInt(timeParts[2] || 0);
+        }
+        
+        return new Date(year, month, day, hrs, mins, secs);
+      }
+    } catch (e) {
+      return null;
+    }
+    return null;
+  }
+
+  function getLocalISODate(d) {
+    if (!d || isNaN(d.getTime())) return '';
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+  
+
+    </script>
+</body>
+
+</html>

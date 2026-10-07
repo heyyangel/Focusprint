@@ -1,0 +1,171 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    @apply bg-sand-50 text-sand-900 font-sans antialiased;
+    min-height: 100vh;
+  }
+  h1, h2, h3, h4 {
+    @apply font-display tracking-tight;
+  }
+  :where(button, a, input, select, textarea):focus-visible {
+    @apply outline-none ring-2 ring-brand-500 ring-offset-2 ring-offset-white;
+  }
+  ::selection {
+    @apply bg-brand-200 text-brand-900;
+  }
+}
+
+@layer components {
+  /* ── Form controls ─────────────────────────────────────────────── */
+  .fp-input {
+    @apply w-full border border-sand-200 rounded-xl px-3 py-2 text-sm bg-white text-sand-900
+           placeholder:text-sand-400
+           focus:ring-2 focus:ring-brand-500/25 focus:border-brand-500 outline-none transition;
+  }
+  .fp-input-sm {
+    @apply w-full border border-sand-200 rounded-lg px-2.5 py-1.5 text-xs bg-white text-sand-900
+           placeholder:text-sand-400
+           focus:ring-2 focus:ring-brand-500/25 focus:border-brand-500 outline-none transition;
+  }
+  .fp-label {
+    @apply block text-xs font-semibold text-sand-600 mb-1.5;
+  }
+
+  /* ── Buttons ───────────────────────────────────────────────────── */
+  .fp-btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm
+           font-semibold transition-all duration-150 active:scale-[0.98]
+           disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100;
+  }
+  .fp-btn-primary {
+    @apply fp-btn bg-brand-600 text-white shadow-sm hover:bg-brand-700 hover:shadow-raised;
+  }
+  .fp-btn-ghost {
+    @apply fp-btn bg-white text-sand-700 border border-sand-200 shadow-sm
+           hover:bg-sand-50 hover:border-sand-300 hover:text-brand-700;
+  }
+  .fp-btn-subtle {
+    @apply fp-btn bg-brand-50 text-brand-700 border border-brand-100 hover:bg-brand-100;
+  }
+  .fp-btn-danger {
+    @apply fp-btn bg-red-600 text-white shadow-sm hover:bg-red-700;
+  }
+
+  /* ── Surfaces ──────────────────────────────────────────────────── */
+  .fp-card {
+    @apply bg-white rounded-2xl border border-sand-200/70 shadow-card;
+  }
+  .fp-section {
+    @apply bg-white rounded-2xl border border-sand-200/70 shadow-card overflow-hidden;
+  }
+  .fp-section-head {
+    @apply flex flex-wrap items-center justify-between gap-3 px-4 sm:px-5 py-3.5 sm:py-4
+           border-b border-sand-200/70 bg-sand-50/60;
+  }
+
+  /* ── Badges ────────────────────────────────────────────────────── */
+  .fp-pill {
+    @apply inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap;
+  }
+  .fp-chip {
+    @apply inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md border text-[10px] font-semibold;
+  }
+
+  /* ── Tables ────────────────────────────────────────────────────── */
+  .fp-th {
+    @apply px-4 py-3 text-left text-[11px] font-bold text-sand-500 uppercase tracking-wider whitespace-nowrap;
+  }
+  .fp-td {
+    @apply px-4 py-3.5 text-sm text-sand-800 align-top;
+  }
+
+  /* ── Sidebar navigation ────────────────────────────────────────── */
+  .fp-nav-item {
+    @apply relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium
+           text-brand-100/70 transition-all duration-150
+           hover:bg-white/[0.07] hover:text-white;
+  }
+  .fp-nav-item-active {
+    @apply bg-brand-600 text-white shadow-raised hover:bg-brand-600 hover:text-white;
+  }
+  .fp-nav-icon {
+    @apply w-5 shrink-0 text-center text-[15px];
+  }
+}
+
+@layer utilities {
+  .scrollbar-slim::-webkit-scrollbar {
+    width: 9px;
+    height: 9px;
+  }
+  .scrollbar-slim::-webkit-scrollbar-thumb {
+    @apply bg-sand-300 rounded-full border-2 border-solid border-transparent bg-clip-content;
+  }
+  .scrollbar-slim::-webkit-scrollbar-thumb:hover {
+    @apply bg-sand-400;
+  }
+  .scrollbar-slim::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+  .scrollbar-dark::-webkit-scrollbar {
+    width: 6px;
+  }
+  .scrollbar-dark::-webkit-scrollbar-thumb {
+    background-color: rgba(255, 255, 255, 0.15);
+    border-radius: 999px;
+  }
+  .scrollbar-dark::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* Frozen leading columns of the Delegation table.
+   Each cell must also carry an OPAQUE bg-* class, otherwise the scrolling
+   columns underneath show through.
+
+   Only pinned from lg up: the five frozen columns total 622px, so on a phone
+   they would be wider than the viewport and pile on top of each other. Below
+   lg the table simply scrolls as one. */
+@media (min-width: 1024px) {
+  /* No z-index here: this rule loads after Tailwind's z-* utilities and
+     would override them. Set z-index on each cell instead. */
+  .sticky-col {
+    position: sticky;
+  }
+  .sticky-col-last {
+    box-shadow: 6px 0 10px -6px rgba(42, 23, 16, 0.18);
+    border-right: 1px solid theme('colors.sand.200');
+  }
+}
+
+/* SweetAlert2 tuned to the Focus Prints palette */
+.swal2-popup {
+  border-radius: 1rem !important;
+  font-family: 'Inter', sans-serif !important;
+  color: #332c26 !important;
+}
+.swal2-title {
+  font-family: 'Outfit', sans-serif !important;
+}
+.swal2-styled.swal2-confirm {
+  background-color: #904a20 !important;
+  border-radius: 0.75rem !important;
+}
+.swal2-styled.swal2-cancel {
+  border-radius: 0.75rem !important;
+}
